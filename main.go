@@ -102,5 +102,5 @@ func main() {
 	flag.Parse()
 
 	Check()
-	//Benchmark(10)
+	Benchmark(10)
 }

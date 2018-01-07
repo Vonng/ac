@@ -1,66 +1,39 @@
 go:
-	go build -o vonng
-	GOGC=off time ./vonng
-
+	go build -o ac
+	GOGC=off time ./ac
 build:
-	go build -o vonng
-	time ./vonng
-
+	go build -o ac
+	time ./ac
 run:
-	GOGC=off ./vonng
-
+	GOGC=off ./ac
 check:
 	python check.py
 
 clean:
-	rm -rf  /tmp/vonng.txt
-	rm -rf  vonng
-	rm -rf  vonng.darwin
-	rm -rf  vonng.linux
+	rm -rf  /tmp/ac.txt
+	rm -rf  ac
+	rm -rf  ac.darwin
+	rm -rf  ac.linux
 	rm -rf  profile
 	rm -rf bin
-
-pprof:
-	go build -o vonng
-	time ./vonng -p
-	go tool pprof vonng profile
-
-ben:
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-	rm -f /tmp/vonng.txt && GOGC=off time ./vonng
-
+p:
+	scp 10.191.160.30:/ramdisk/go/src/ac/profile . &&  go tool pprof profile
+sync:
+    scp -r /Users/vonng/Dev/go/src/ac 10.191.160.30:/ramdisk/go/src/ac
 remote:
-	GOOS=linux GOARCH=amd64 go build -o vonng.linux vonng.go
-	scp vonng.linux 10.191.160.30:/ramdisk/vonng.linux
-	ssh 10.191.160.30 "GOGC=off time /ramdisk/vonng.linux -i /ramdisk/video_title.txt -o /ramdisk/vonng.txt"
+	GOOS=linux GOARCH=amd64 go build -o ac.linux ac.go
+	scp ac.linux 10.191.160.30:/ramdisk/ac.linux
+	ssh 10.191.160.30 "GOGC=off time /ramdisk/ac.linux -i /ramdisk/video_title.txt -o /ramdisk/ac.txt"
 
 remotetest:
-	GOOS=linux GOARCH=amd64 go build -o vonng.linux vonng.go
-	scp vonng.linux 10.191.160.30:/ramdisk/vonng.test
+	GOOS=linux GOARCH=amd64 go build -o ac.linux ac.go
+	scp ac.linux 10.191.160.30:/ramdisk/ac.test
 rt:
-	ssh 10.191.160.30 "GOGC=off time /ramdisk/vonng -i /ramdisk/video_title.txt -o /ramdisk/vonng.txt"
+	ssh 10.191.160.30 "GOGC=off time /ramdisk/ac -i /ramdisk/video_title.txt -o /ramdisk/ac.txt"
 
 upload:
-	GOOS=linux GOARCH=amd64 go build -o vonng.linux vonng.go
-	scp vonng.linux tt:/tmp/vonng
-	ssh tt "rm /tmp/vonng.txt && GOGC=off time /tmp/vonng"
+	GOOS=linux GOARCH=amd64 go build -o ac.linux ac.go
+	scp ac.linux tt:/tmp/ac
+	ssh tt "rm /tmp/ac.txt && GOGC=off time /tmp/ac"
 
 .PHONY: install clean upload
