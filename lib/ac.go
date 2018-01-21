@@ -1,4 +1,4 @@
-package ac
+package lib
 
 import (
 	"io"
@@ -25,7 +25,6 @@ const (
 	TypeMusic = 2
 	TypeBoth  = 3
 
-
 	DictSize = 106264
 	maxRune  = 260
 	maxByte  = 384
@@ -48,9 +47,6 @@ var (
 	Fail  []int
 	Info  []int
 )
-
-// Target
-var W *bufio.Writer
 
 // WriteRune Extreme version (no error check)
 func WriteRune(r rune) {
@@ -83,32 +79,28 @@ func WriteRune(r rune) {
 }
 
 func WriteByType(match int) {
+	Buf[BSP] = 45
+	BSP++
+	Buf[BSP] = 42
+	BSP++
 	switch (match & MaskType) >> 14 {
 	case TypeMovie:
-		WriteRune(45)
-		WriteRune(42)
 		WriteRune(30005)
 		WriteRune(24433)
-		WriteRune(42)
-		WriteRune(45)
 	case TypeMusic:
-		WriteRune(45)
-		WriteRune(42)
 		WriteRune(38899)
 		WriteRune(20048)
-		WriteRune(42)
-		WriteRune(45)
 	case TypeBoth:
-		WriteRune(45)
-		WriteRune(42)
 		WriteRune(38899)
 		WriteRune(20048)
 		WriteRune(38)
 		WriteRune(30005)
 		WriteRune(24433)
-		WriteRune(42)
-		WriteRune(45)
 	}
+	Buf[BSP] = 42
+	BSP++
+	Buf[BSP] = 45
+	BSP++
 }
 
 /**************************************************************\
@@ -116,14 +108,14 @@ func WriteByType(match int) {
 \**************************************************************/
 
 // HandleLine take one line , process and write it
-func HandleLine(line []byte) {
+func HandleLine(input []byte) (output []byte) {
 	var Matches [5]int
 	var nMatch, match, rCursor, wCursor, info, mLength, mBegin int
 	var overlap bool
 	state := RootState
 
 	// stage 1 : find all match
-	for _, c := range *(*string)(unsafe.Pointer(&line)) {
+	for _, c := range *(*string)(unsafe.Pointer(&input)) {
 	transfer:
 		Cache[rCursor] = c
 
@@ -177,7 +169,7 @@ func HandleLine(line []byte) {
 	// stage 2 : replace all match
 	if nMatch == 0 {
 		// no match, write line back
-		W.Write(line)
+		return input
 	} else {
 		// reset buf
 		BSP = 0
@@ -208,7 +200,7 @@ func HandleLine(line []byte) {
 				wCursor ++
 			}
 		}
-		W.Write(Buf[:BSP])
+		return Buf[:BSP]
 	}
 }
 
@@ -238,12 +230,12 @@ func Run(inputPath, outputPath, dictPath string) {
 		panic(err)
 	}
 	defer outputFile.Close()
-	W = bufio.NewWriterSize(outputFile, BufSize)
+	writer := bufio.NewWriterSize(outputFile, BufSize)
 
 	// process loop
 	var line []byte
 	for err = nil; err != io.EOF; line, err = reader.ReadSlice('\n') {
-		HandleLine(line)
+		writer.Write(HandleLine(line))
 	}
-	W.Flush()
+	writer.Flush()
 }

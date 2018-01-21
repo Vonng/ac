@@ -9,7 +9,7 @@ import (
 	"io/ioutil"
 	"encoding/hex"
 	"runtime/pprof"
-	"ac/ac"
+	"ac/lib"
 )
 
 const (
@@ -32,12 +32,8 @@ var (
 \**************************************************************/
 // Check run program once ,do prof and check sig
 func Check() {
-	f, _ := os.Create(profilePath)
-	pprof.StartCPUProfile(f)
-	defer pprof.StopCPUProfile()
-
 	begin := time.Now()
-	ac.Run(inputPath, outputPath, dictPath)
+	lib.Run(inputPath, outputPath, dictPath)
 	elapse := time.Now().Sub(begin)
 
 	// Check correctness
@@ -68,7 +64,7 @@ func Benchmark(n int) {
 	bench := make([]int64, n)
 	for i := 0; i < n; i++ {
 		begin := time.Now()
-		ac.Run(inputPath, outputPath, dictPath)
+		lib.Run(inputPath, outputPath, dictPath)
 		elapse := int64(time.Now().Sub(begin))
 		fmt.Printf("Round %d: %s\n", i, time.Duration(elapse))
 		bench[i] = elapse
