@@ -9,7 +9,7 @@ import (
 	"io/ioutil"
 	"encoding/hex"
 	"runtime/pprof"
-	"ac/lib"
+	"github.com/Vonng/ac/lib"
 )
 
 const (

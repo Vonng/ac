@@ -1,8 +1,10 @@
 package main
 
+// pure version
+
 import (
 	"flag"
-	"ac/lib"
+	"github.com/Vonng/ac/lib"
 )
 
 const (

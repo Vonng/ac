@@ -3,8 +3,8 @@ package lib
 import (
 	"io"
 	"os"
-	"unsafe"
 	"bufio"
+	"unsafe"
 )
 
 /**************************************************************\
@@ -48,7 +48,7 @@ var (
 	Info  []int
 )
 
-// WriteRune Extreme version (no error check)
+// WriteRune put rune to global buffer (extreme ver without err check)
 func WriteRune(r rune) {
 	switch i := uint32(r); {
 	case i <= 127:
@@ -78,6 +78,7 @@ func WriteRune(r rune) {
 	}
 }
 
+// WriteByType put write target string to buffer via match type
 func WriteByType(match int) {
 	Buf[BSP] = 45
 	BSP++
@@ -179,7 +180,6 @@ func HandleLine(input []byte) (output []byte) {
 		mLength = match & MaskLength
 
 		for wCursor = 0; wCursor < rCursor; {
-			//matchBegin := (match & MaskBegin) >> 24
 			if wCursor < mBegin {
 				WriteRune(Cache[wCursor])
 				wCursor ++
@@ -207,7 +207,7 @@ func HandleLine(input []byte) (output []byte) {
 /**************************************************************\
 *                          Driver                              *
 \**************************************************************/
-// Run receive its params from global variable
+// Run program with given parameter
 func Run(inputPath, outputPath, dictPath string) {
 	// dict
 	ac := FromFile(dictPath)

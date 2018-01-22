@@ -15,8 +15,6 @@ if [ "$2" != "" ]; then
 	label="$2"
 fi
 
-# echo "capacity=$capacity\nlabel=$label"
-
 # 1(capacity)=2097152(ram)
 ram=$(($capacity*2097152))
 
