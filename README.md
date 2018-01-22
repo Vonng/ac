@@ -1,12 +1,58 @@
-# 多模式匹配
+# ACDAT in Go
+
+Aho-Corasick Automaton with Double Array Trie (Multi-patterm substitute in go)
 
 * 多模式匹配（替换）具有很强的现实意义与实用价值：敏感词过滤，病毒特征码搜索等。
-* 字典中约有一千条关键字，分为三大类：电影、音乐、电影&音乐，将输入文本中的字典记录替换为相应的类别文本。遵循贪婪原则与最长匹配原则。
+* 字典中约有一千条关键字，分为三大类：电影、音乐、电影&音乐，将输入文本中的字典记录替换为相应的类别文本。遵循贪婪原则与最先匹配原则。
 
 
 
 
-## 原题
+## 使用说明
+
+```bash
+# Setup environment: create ramdisk and copy input files
+# Assume you are using Mac
+$ make setup
+util/ramdisk.sh && mkdir -p /ramdisk/vonng
+Started erase on disk2
+Unmounting disk
+Erasing
+Initialized /dev/rdisk2 as a 1024 MB case-insensitive HFS Plus volume
+Mounting disk
+Finished erase on disk2 ramdisk
+tar -xf data/dict.txt.tgz -C /ramdisk/vonng
+cat data/xa* | tar -x -C /ramdisk/vonng
+
+# build and run 
+$ make
+GOGC=off ./ac -p=profile
+time: 2.497193491s sig: 5d76461b53079d20c08eb0b33c46b7cd
+Round 0: 2.497955425s
+Round 1: 2.504176103s
+Round 2: 2.518718803s
+Round 3: 2.506447912s
+Round 4: 2.531897625s
+Round 5: 2.529866993s
+Round 6: 2.524811658s
+Round 7: 2.531879072s
+Round 8: 2.532776425s
+Round 9: 2.549934714s
+Avg: 2.522571823s
+
+# run with profile
+make runp
+
+# see profile
+# type 'web' to see graphviz call graph
+make prof
+```
+
+
+
+
+
+## 题目
 
 ### 1. 目的
 
@@ -56,20 +102,20 @@ X档案	-*电影*-
 
 `从前，东北一家人生活在伤心太平洋。` 替换完成后变成 `从前，-*电影*-生活在-*音乐&电影*-。`
 
-替换后的结果请输出到result.txt文件。
+替换后的结果请输出到`result.txt`文件。
 
 #### 匹配原则
 
 为了加强结果的稳定性，规定一些原则：
 
-1. 从前向后匹配。例如如果`寂寞的季节`， `节日`都是 key string， 一条输入`寂寞的季节日日悲催`只会匹配到`寂寞的季节`， 不会再匹配`节日`
+1. 从前向后匹配。例如如果`寂寞的季节`， `节日`都是key string， 一条输入`寂寞的季节日日悲催`只会匹配到`寂寞的季节`， 不会再匹配`节日`
 2. 贪心匹配原则，匹配最长的那个key string。例如`独立`，`独立日` 都是key string的话。一条输入`听说独立日这部电影是美国人拍的`，只会匹配上`独立日`，不会匹配到`独立`。如果没有比`独立日`更长的匹配的话。
 
 #### 其他要求
 
 1. 必须提交源代码。
 2. 比的是算法与编程细节。必须单机运算，禁止分布式，禁止多核并发。
-3. 可以对词典文件进行预处理，不允许对video_title文件预处理。
+3. 可以对词典文件进行预处理，不允许对`video_title.txt`文件预处理。
 4. 不允许把结果文件存下来直接输出。
 5. 内存占用必须小于500M。
 6. 发现抄袭两人成绩同时作废。
@@ -78,9 +124,96 @@ X档案	-*电影*-
 
 
 
+
+
+
 ## 比赛结果
 
-* 结果文件MD5：5d76461b53079d20c08eb0b33c46b7cd
+![](image/result2.png)
+
+结果文件MD5：`5d76461b53079d20c08eb0b33c46b7cd`
+
+本机测试平均为2.5秒，标准服务器测试结果为3.2秒。
+
+本机重复执行十次的profile：
+
+![](image/pprof.png)
+
+### 服务器bench脚本
+
+```bash
+#!/bin/bash
+# REQUIRES SUDO
+# Benchmark runner
+
+repeats=20
+output_file='/ramdisk/bench/results.csv'
+command_to_run='echo 1'
+
+run_tests() {
+    # --------------------------------------------------------------------------
+    # Benchmark loop
+    # --------------------------------------------------------------------------
+    echo 'Benchmarking ' $command_to_run '...';
+    # Indicate the command we just run in the csv file
+    echo '======' $command_to_run '======' >> $output_file;
+
+    # Run the given command [repeats] times
+    for (( i = 1; i <= $repeats ; i++ ))
+    do
+        # percentage completion
+        p=$(( $i * 100 / $repeats))
+        # indicator of progress
+        l=$(seq -s "+" $i | sed 's/[0-9]//g')
+
+        rm -f /ramdisk/bench/tmp/*
+        # runs time function for the called script, output in a comma seperated
+        # format output file specified with -o command and -a specifies append
+        # /usr/bin/time -f "%E,%U,%S" -o ${output_file} -a ${command_to_run} > /dev/null 2>&1
+        GOGC=off chrt -f 99 /usr/bin/time -f "%e" -o ${output_file} -a ${command_to_run} > /dev/null 2>&1
+
+        # Clear the HDD cache (I hope?)
+        sync && echo 3 > /proc/sys/vm/drop_caches
+
+        echo -ne ${l}' ('${p}'%) \r'
+    done;
+    md5sum -c <<<"5d76461b53079d20c08eb0b33c46b7cd  /ramdisk/bench/tmp/result"
+
+    echo -ne '\n'
+
+    # Convenience seperator for file
+    echo '--------------------------' >> $output_file
+}
+
+# Option parsing
+while getopts n:c:o: OPT
+do
+    case "$OPT" in
+        n)
+            repeats=$OPTARG
+            ;;
+        o)
+            output_file=$OPTARG
+            ;;
+        c)
+            command_to_run=$OPTARG
+            run_tests
+            ;;
+        \?)
+            echo 'No arguments supplied'
+            exit 1
+            ;;
+    esac
+done
+
+shift `expr $OPTIND - 1`
+
+```
+
+
+
+
+
 
 
 
@@ -92,19 +225,20 @@ X档案	-*电影*-
 * 以Profiling为依据，以Benchmark为准绳
   * 先优化算法，再做场景特定优化，然后优化IO，最后优化细节。
 
-  ​
 
 
 
-## 选型
 
-### 语言
+
+### 1. 选型
+
+#### 语言
 
 运算密集型应用，不考虑Python，Javascript，SQL，Shell等脚本语言。
 
 Go的性能损失绝对不到C的一倍，因此一定选Go。但如果比绝对时长，那么选C。
 
-### 算法
+#### 算法
 
 直觉：状态机，Trie，KMP
 
@@ -114,7 +248,7 @@ Go的性能损失绝对不到C的一倍，因此一定选Go。但如果比绝对
 
 
 
-## 分治
+### 2. 分治
 
 将问题划分为几个子问题：
 
@@ -136,13 +270,13 @@ for err = nil; err != io.EOF; line, err = reader.ReadSlice('\n') {
 
 
 
-## 优化
+### 3. 优化
 
 算法层面的优化不细说了，大家用的基本上都是一样的方法。主要谈一谈工程上的优化。
 
 工程上的一些技巧，从本机5秒优化至2.6秒
 
-### 处理粒度: 1s
+#### 处理粒度: 1s
 
 粒度是输入的字符宽度，对实现有决定性的影响。
 
@@ -152,7 +286,7 @@ for err = nil; err != io.EOF; line, err = reader.ReadSlice('\n') {
 
 * 使用`int32`，即`rune`为单位
   * 最为通用的做法，可以处理所有Unicode字符，包括Emoji等。（在本题中并没有）
-  * 需要较少的状态转移判断。
+  * 需要较少的状态转移判断，但存在rune解码编码开销
   * 状态数组长度约10W。比较宽，总大小在1.6M左右。
 * 使用int16，即双字节编码
   * 可选UTF16，GBK等编码，但这是开历史倒车的行为。
@@ -164,13 +298,13 @@ for err = nil; err != io.EOF; line, err = reader.ReadSlice('\n') {
   * 状态数组非常更小，缓存友好。
   * 无效判断大大增多，状态转移判断数翻倍（2KW 到 4KW）。
 
-最终选择了 `int32`的做法，这是最有通用性，也是实际bench中性能最好的方案。
+最终选择了 `int32`的做法，这是实际bench中性能最好的方案，也具有良好的通用性。
 
-
+### 
 
 ### 字符串、字符数组、字节数组转换： 0.5s
 
-* [深入Go文本类型](https://vonng.com/blog/go-text-types/)，[]byte转为string是相对安全的操作，因为string相比[]byte只是少了一个cap字段。
+* [深入Go文本类型](https://vonng.com/blog/go-text-types/)，[]byte转为string是**相对安全**的操作，因为string相比[]byte只是少了一个cap字段。
 
 ```go
 for _, c := range *(*string)(unsafe.Pointer(&input))
@@ -213,59 +347,25 @@ func WriteRune(r rune) {
 
 ### 缓冲区大小
 
-操作系统一个Page大小为4k，但宝存的SSD，一次写入都是32K。所以在普通闪存盘上32k的缓冲区表现的很不错了。不过后来换成了Ramdisk，事情就不一样了。
+操作系统一个Page大小为4k，服务器默认是宝存的PCI-E SSD，一次写入的单位是32K。所以在普通闪存盘上32k的缓冲区表现已经很不错了。不过后来换成了Ramdisk，就又需要修改了。
 
-![](buf-bench.png)
+![](image/buf-bench.png)
 
-所以IO的Buffer设置为128k，表现还不错。
+最后IO的Buffer设置为128k，表现还不错。
 
 我也试过用系统调用一次性读完，一次性写入，有一定提升，但内存消耗就变成O(n)的了。所以就没用。
 
-出乎意料的是，使用ramdisk并没有对整体性能产生质的提升。一个原因是IO的pattern是顺序读取与顺序写入。对于PCI-E Nvme SSD而言，内存盘并没有绝对性的优势。
-
-
+出乎意料的是，使用ramdisk并没有对性能产生质的提升。一个原因是IO的pattern是顺序读取与顺序写入。对于PCI-E SSD而言，内存盘并没有绝对性的优势。
 
 ### 条件分支重排： 0.3s
 
 通过检查分支命中的概率，重排、组合条件分支，能有0.3秒的性能提升。
 
-
-
 ### 全局变量 vs 本地变量: 0.1
 
-使用全局变量带来了0.1s的优化
-
-
+使用全局变量带来了0.1s的优化，但一部分变量改为全局变量反而会影响性能。
 
 ### 字典常量 vs 动态创建 0.15s 
 
-存在只读段的数组，访问起来竟然比本地读取重新构建还要慢，不禁陷入深思
-
-
-
-
-
-## 说明
-
-```bash
-# create ramdisk and prepare data
-$ make setup
-
-# run check & benchmark
-$ make
-time ./ac
-time: 2.436752325s sig: 5d76461b53079d20c08eb0b33c46b7cd
-Round 0: 2.421192005s
-Round 1: 2.495772601s
-Round 2: 2.787171783s
-Round 3: 2.694790848s
-Round 4: 2.680434589s
-Round 5: 2.596039786s
-Round 6: 2.604909265s
-Round 7: 2.674714527s
-Round 8: 2.757678107s
-Round 9: 2.611880906s
-Avg: 2.639527578s
-       29.39 real        27.55 user         1.62 sys
-```
+存在只读段的数组，访问起来竟然比本地读取重新构建还要慢，不禁陷入深思。
 
