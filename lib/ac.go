@@ -121,7 +121,7 @@ func HandleLine(input []byte) (output []byte) {
 		Cache[rCursor] = c
 
 		// state transfer
-		if t := state + int(c) + RootState; t < DictSize { // 219169484
+		if t := state + int(c) + RootState; t < len(Check) { // 219169484
 			if state == Check[t] { // 53870341
 				state = Base[t]
 				goto match
@@ -131,6 +131,11 @@ func HandleLine(input []byte) (output []byte) {
 				goto match
 			}
 		}
+
+		if state == RootState {
+			goto done
+		}
+
 		// reach fail state
 		state = Fail[state]
 		goto transfer
