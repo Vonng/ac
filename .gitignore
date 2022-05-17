@@ -1,0 +1,6 @@
+*.o
+*.so
+*.dylib
+results/
+regression.diffs
+regression.out
