@@ -1,23 +1,29 @@
 # acdat
 
-`acdat` is an experiment in moving the original Go ACDAT benchmark into
-PostgreSQL.  The long-term idea is to compile a dictionary once and scan text
-with an Aho-Corasick automaton.
+`acdat` is an early PostgreSQL port of the original Go ACDAT benchmark.
+Version 0.0.1 targets PostgreSQL 14 and uses PGXS.
 
-Version 0.0.1 targets PostgreSQL 14.  The repository currently contains only a
-small PGXS extension skeleton and a version function.
+The first usable piece is dictionary serialization:
+
+```sql
+CREATE EXTENSION acdat;
+
+SELECT octet_length(
+  acdat_compile(ARRAY['he', 'she', 'his', 'hers'])
+);
+```
+
+`acdat_compile(text[])` validates a one-dimensional pattern array and stores
+the strings in a `bytea`.  Empty patterns and null elements are rejected.  The
+compiled value is still only a private prototype format; matching is not
+exposed yet.
 
 ```bash
 make
 sudo make install
 ```
 
-```sql
-CREATE EXTENSION acdat;
-SELECT acdat_version();
-```
-
-The old benchmark used Aho-Corasick with a Double-Array Trie for large
-multi-pattern replacement jobs.  This PostgreSQL port starts with a simpler C
-implementation so that the SQL interface can be explored first.
+The intended matcher is Aho-Corasick, following the same basic idea as the old
+Go implementation.  Compact Double-Array Trie storage can be considered after
+the PostgreSQL API is working.
 
