@@ -9,3 +9,8 @@ CREATE FUNCTION acdat_compile(patterns text[])
 RETURNS bytea
 AS 'MODULE_PATHNAME', 'acdat_compile'
 LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION acdat_contains(input text, dictionary bytea)
+RETURNS boolean
+AS 'MODULE_PATHNAME', 'acdat_contains'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;

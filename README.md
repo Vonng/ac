@@ -1,28 +1,35 @@
 # acdat
 
-`acdat` is an early PostgreSQL port of the original Go ACDAT benchmark.
-Version 0.0.1 targets PostgreSQL 14 and uses PGXS.
-
-`acdat_compile(text[])` now builds a byte-oriented Aho-Corasick trie, including
-failure links and terminal propagation, and returns the machine as a `bytea`.
-
-```sql
-CREATE EXTENSION acdat;
-
-SELECT octet_length(
-  acdat_compile(ARRAY['he', 'she', 'his', 'hers'])
-);
-```
-
-The implementation deliberately uses a dense 256-entry transition table per
-node.  It is simple to inspect but uses much more memory than a Double-Array
-Trie.  The SQL scan function is not exposed yet.
+`acdat` 0.0.1 is a small PostgreSQL 14 extension for exact multi-pattern
+detection with a byte-oriented Aho-Corasick automaton.
 
 ```bash
 make
 sudo make install
 ```
 
-The machine layout contains native C structs and must not be persisted across
-extension upgrades or copied between platforms.
+Compile a dictionary and test an input:
+
+```sql
+CREATE EXTENSION acdat;
+
+WITH dictionary AS (
+  SELECT acdat_compile(ARRAY['he', 'she', 'his', 'hers']) AS value
+)
+SELECT acdat_contains('ushers', value)
+FROM dictionary;
+```
+
+`acdat_compile(text[])` builds the trie and failure links.  PostgreSQL text is
+already valid in the database encoding, so matching full UTF-8 patterns as
+bytes is sufficient for exact literal detection.  `acdat_contains(text,
+bytea)` scans once and stops at the first match.
+
+Current limitations:
+
+- detection only;
+- no match identifiers, positions, priorities, or replacement;
+- a dense transition table with high memory use;
+- a native, version-specific `bytea` layout;
+- dictionaries are managed by application SQL.
 

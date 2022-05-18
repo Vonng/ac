@@ -28,6 +28,7 @@ typedef struct AcdatNode
 
 PG_FUNCTION_INFO_V1(acdat_version);
 PG_FUNCTION_INFO_V1(acdat_compile);
+PG_FUNCTION_INFO_V1(acdat_contains);
 
 static void
 acdat_init_node(AcdatNode *node)
@@ -38,6 +39,42 @@ acdat_init_node(AcdatNode *node)
         node->next[symbol] = -1;
     node->fail = 0;
     node->terminal = 0;
+}
+
+static void
+acdat_read_dictionary(bytea *dictionary,
+                      AcdatDictionaryHeader **header_out,
+                      AcdatNode **nodes_out)
+{
+    Size size = VARSIZE_ANY_EXHDR(dictionary);
+    AcdatDictionaryHeader *header;
+    Size expected;
+
+    if (size < sizeof(AcdatDictionaryHeader))
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION),
+                 errmsg("invalid acdat dictionary")));
+
+    header = (AcdatDictionaryHeader *) VARDATA_ANY(dictionary);
+    if (header->magic != ACDAT_DICTIONARY_MAGIC ||
+        header->version != 1 || header->node_count == 0)
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION),
+                 errmsg("invalid acdat dictionary")));
+
+    if (header->node_count >
+        (MaxAllocSize - sizeof(*header)) / sizeof(AcdatNode))
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION),
+                 errmsg("invalid acdat dictionary size")));
+    expected = sizeof(*header) + header->node_count * sizeof(AcdatNode);
+    if (size != expected)
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION),
+                 errmsg("invalid acdat dictionary size")));
+
+    *header_out = header;
+    *nodes_out = (AcdatNode *) (header + 1);
 }
 
 Datum
@@ -177,4 +214,35 @@ acdat_compile(PG_FUNCTION_ARGS)
                 VARHDRSZ + sizeof(*header) + node_count * sizeof(AcdatNode));
 
     PG_RETURN_BYTEA_P(result);
+}
+
+Datum
+acdat_contains(PG_FUNCTION_ARGS)
+{
+    text *input = PG_GETARG_TEXT_PP(0);
+    bytea *dictionary = PG_GETARG_BYTEA_PP(1);
+    AcdatDictionaryHeader *header;
+    AcdatNode *nodes;
+    const unsigned char *bytes =
+        (const unsigned char *) VARDATA_ANY(input);
+    Size length = VARSIZE_ANY_EXHDR(input);
+    uint32 state = 0;
+    Size offset;
+
+    acdat_read_dictionary(dictionary, &header, &nodes);
+    (void) header;
+
+    for (offset = 0; offset < length; offset++)
+    {
+        unsigned int symbol = bytes[offset];
+
+        while (state != 0 && nodes[state].next[symbol] < 0)
+            state = nodes[state].fail;
+        if (nodes[state].next[symbol] >= 0)
+            state = (uint32) nodes[state].next[symbol];
+        if (nodes[state].terminal)
+            PG_RETURN_BOOL(true);
+    }
+
+    PG_RETURN_BOOL(false);
 }
