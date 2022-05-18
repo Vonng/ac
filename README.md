@@ -3,7 +3,8 @@
 `acdat` is an early PostgreSQL port of the original Go ACDAT benchmark.
 Version 0.0.1 targets PostgreSQL 14 and uses PGXS.
 
-The first usable piece is dictionary serialization:
+`acdat_compile(text[])` now builds a byte-oriented Aho-Corasick trie, including
+failure links and terminal propagation, and returns the machine as a `bytea`.
 
 ```sql
 CREATE EXTENSION acdat;
@@ -13,17 +14,15 @@ SELECT octet_length(
 );
 ```
 
-`acdat_compile(text[])` validates a one-dimensional pattern array and stores
-the strings in a `bytea`.  Empty patterns and null elements are rejected.  The
-compiled value is still only a private prototype format; matching is not
-exposed yet.
+The implementation deliberately uses a dense 256-entry transition table per
+node.  It is simple to inspect but uses much more memory than a Double-Array
+Trie.  The SQL scan function is not exposed yet.
 
 ```bash
 make
 sudo make install
 ```
 
-The intended matcher is Aho-Corasick, following the same basic idea as the old
-Go implementation.  Compact Double-Array Trie storage can be considered after
-the PostgreSQL API is working.
+The machine layout contains native C structs and must not be persisted across
+extension upgrades or copied between platforms.
 

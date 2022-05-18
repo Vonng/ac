@@ -9,17 +9,36 @@
 PG_MODULE_MAGIC;
 
 #define ACDAT_DICTIONARY_MAGIC 0x41434431U
+#define ACDAT_ALPHABET_SIZE 256
 
 typedef struct AcdatDictionaryHeader
 {
     uint32 magic;
     uint32 version;
+    uint32 node_count;
     uint32 pattern_count;
-    uint32 data_bytes;
 } AcdatDictionaryHeader;
+
+typedef struct AcdatNode
+{
+    int32 next[ACDAT_ALPHABET_SIZE];
+    uint32 fail;
+    uint32 terminal;
+} AcdatNode;
 
 PG_FUNCTION_INFO_V1(acdat_version);
 PG_FUNCTION_INFO_V1(acdat_compile);
+
+static void
+acdat_init_node(AcdatNode *node)
+{
+    int symbol;
+
+    for (symbol = 0; symbol < ACDAT_ALPHABET_SIZE; symbol++)
+        node->next[symbol] = -1;
+    node->fail = 0;
+    node->terminal = 0;
+}
 
 Datum
 acdat_version(PG_FUNCTION_ARGS)
@@ -34,11 +53,15 @@ acdat_compile(PG_FUNCTION_ARGS)
     Datum *values;
     bool *nulls;
     int count;
-    Size data_bytes = 0;
+    Size max_nodes = 1;
     Size result_bytes;
     bytea *result;
     AcdatDictionaryHeader *header;
-    char *cursor;
+    AcdatNode *nodes;
+    uint32 node_count = 1;
+    uint32 *queue;
+    uint32 queue_head = 0;
+    uint32 queue_tail = 0;
     int i;
 
     if (ARR_NDIM(patterns) != 1)
@@ -70,40 +93,88 @@ acdat_compile(PG_FUNCTION_ARGS)
             ereport(ERROR,
                     (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                      errmsg("patterns must not contain empty strings")));
-        if (length > PG_UINT32_MAX ||
-            data_bytes > MaxAllocSize - sizeof(uint32) - length)
+        if (length > PG_UINT32_MAX || max_nodes > PG_UINT32_MAX - length)
             ereport(ERROR,
                     (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
                      errmsg("compiled dictionary is too large")));
-        data_bytes += sizeof(uint32) + length;
+        max_nodes += length;
     }
 
-    if (data_bytes > PG_UINT32_MAX ||
-        data_bytes > MaxAllocSize - VARHDRSZ - sizeof(*header))
+    if (max_nodes > (MaxAllocSize - VARHDRSZ - sizeof(*header)) /
+                    sizeof(AcdatNode))
         ereport(ERROR,
                 (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
                  errmsg("compiled dictionary is too large")));
 
-    result_bytes = VARHDRSZ + sizeof(*header) + data_bytes;
+    result_bytes = VARHDRSZ + sizeof(*header) + max_nodes * sizeof(AcdatNode);
     result = (bytea *) palloc0(result_bytes);
-    SET_VARSIZE(result, result_bytes);
     header = (AcdatDictionaryHeader *) VARDATA(result);
-    header->magic = ACDAT_DICTIONARY_MAGIC;
-    header->version = 1;
-    header->pattern_count = (uint32) count;
-    header->data_bytes = (uint32) data_bytes;
-    cursor = (char *) (header + 1);
+    nodes = (AcdatNode *) (header + 1);
+
+    for (i = 0; i < (int) max_nodes; i++)
+        acdat_init_node(&nodes[i]);
 
     for (i = 0; i < count; i++)
     {
         text *pattern = DatumGetTextPP(values[i]);
-        uint32 length = (uint32) VARSIZE_ANY_EXHDR(pattern);
+        const unsigned char *bytes =
+            (const unsigned char *) VARDATA_ANY(pattern);
+        Size length = VARSIZE_ANY_EXHDR(pattern);
+        uint32 state = 0;
+        Size offset;
 
-        memcpy(cursor, &length, sizeof(length));
-        cursor += sizeof(length);
-        memcpy(cursor, VARDATA_ANY(pattern), length);
-        cursor += length;
+        for (offset = 0; offset < length; offset++)
+        {
+            unsigned int symbol = bytes[offset];
+
+            if (nodes[state].next[symbol] < 0)
+                nodes[state].next[symbol] = (int32) node_count++;
+            state = (uint32) nodes[state].next[symbol];
+        }
+        nodes[state].terminal = 1;
     }
+
+    queue = (uint32 *) palloc(sizeof(uint32) * node_count);
+    for (i = 0; i < ACDAT_ALPHABET_SIZE; i++)
+    {
+        int32 child = nodes[0].next[i];
+
+        if (child >= 0)
+            queue[queue_tail++] = (uint32) child;
+    }
+
+    while (queue_head < queue_tail)
+    {
+        uint32 state = queue[queue_head++];
+        int symbol;
+
+        for (symbol = 0; symbol < ACDAT_ALPHABET_SIZE; symbol++)
+        {
+            int32 child = nodes[state].next[symbol];
+            uint32 failure;
+
+            if (child < 0)
+                continue;
+
+            failure = nodes[state].fail;
+            while (failure != 0 && nodes[failure].next[symbol] < 0)
+                failure = nodes[failure].fail;
+            if (nodes[failure].next[symbol] >= 0)
+                failure = (uint32) nodes[failure].next[symbol];
+
+            nodes[child].fail = failure;
+            if (nodes[failure].terminal)
+                nodes[child].terminal = 1;
+            queue[queue_tail++] = (uint32) child;
+        }
+    }
+
+    header->magic = ACDAT_DICTIONARY_MAGIC;
+    header->version = 1;
+    header->node_count = node_count;
+    header->pattern_count = (uint32) count;
+    SET_VARSIZE(result,
+                VARHDRSZ + sizeof(*header) + node_count * sizeof(AcdatNode));
 
     PG_RETURN_BYTEA_P(result);
 }
