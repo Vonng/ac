@@ -6,9 +6,8 @@ detection with a byte-oriented Aho-Corasick automaton.
 ```bash
 make
 sudo make install
+make installcheck
 ```
-
-Compile a dictionary and test an input:
 
 ```sql
 CREATE EXTENSION acdat;
@@ -20,16 +19,16 @@ SELECT acdat_contains('ushers', value)
 FROM dictionary;
 ```
 
-`acdat_compile(text[])` builds the trie and failure links.  PostgreSQL text is
-already valid in the database encoding, so matching full UTF-8 patterns as
-bytes is sufficient for exact literal detection.  `acdat_contains(text,
-bytea)` scans once and stops at the first match.
+`acdat_compile(text[])` builds the trie and failure links.
+`acdat_contains(text, bytea)` scans once and stops at the first match.  The
+initial regression suite covers positive and negative matches, failure-link
+fallback, suffix matches, and complete UTF-8 patterns.
 
 Current limitations:
 
 - detection only;
 - no match identifiers, positions, priorities, or replacement;
-- a dense transition table with high memory use;
+- a dense 256-entry transition table per node;
 - a native, version-specific `bytea` layout;
 - dictionaries are managed by application SQL.
 
