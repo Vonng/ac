@@ -1,7 +1,8 @@
 EXTENSION = acdat
 MODULE_big = acdat
 OBJS = src/acdat.o
-DATA = sql/acdat--0.0.1.sql
+DATA = sql/acdat--0.0.1.sql sql/acdat--0.0.2.sql \
+	sql/acdat--0.0.1--0.0.2.sql
 REGRESS = acdat_basic
 PGFILEDESC = "acdat - experimental Aho-Corasick matcher"
 

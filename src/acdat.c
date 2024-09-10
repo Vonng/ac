@@ -80,7 +80,7 @@ acdat_read_dictionary(bytea *dictionary,
 Datum
 acdat_version(PG_FUNCTION_ARGS)
 {
-    PG_RETURN_TEXT_P(cstring_to_text("0.0.1"));
+    PG_RETURN_TEXT_P(cstring_to_text("0.0.2"));
 }
 
 Datum
