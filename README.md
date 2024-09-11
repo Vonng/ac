@@ -1,29 +1,29 @@
 # acdat
 
-`acdat` 0.0.2 is an experimental Aho-Corasick matcher for PostgreSQL 14
-through 16.
-
-The compiler can now store an optional replacement beside each pattern:
+`acdat` 0.0.2 provides exact multi-pattern detection and simple literal
+replacement on PostgreSQL 14 through 16.
 
 ```sql
-SELECT acdat_compile(
-  ARRAY['virus', 'trojan'],
-  ARRAY['[risk]', '[risk]']
-);
+CREATE EXTENSION acdat;
+
+WITH dictionary AS (
+  SELECT acdat_compile(
+    ARRAY['virus', 'trojan'],
+    ARRAY['[risk]', '[risk]']
+  ) AS value
+)
+SELECT acdat_replace('possible virus signature', value)
+FROM dictionary;
 ```
 
-The public scan API remains detection-only at this point:
+`acdat_replace(text, bytea)` walks from left to right and chooses the longest
+pattern beginning at the current position.  Equal-length ties follow input
+dictionary order.  Replacement is literal and non-recursive.
 
-```sql
-SELECT acdat_contains(
-  'possible virus signature',
-  acdat_compile(ARRAY['virus', 'trojan'])
-);
-```
-
-Replacement records are part of a revised private machine layout.  This is a
-preparatory format change; no SQL replacement function is exposed yet.  Null
-replacement elements mean that a pattern has no replacement value.
+Detection continues to use the Aho-Corasick machine.  The first replacement
+implementation intentionally scans stored pattern records at each position;
+it is simple and deterministic, but not yet suitable for very large
+dictionaries.
 
 ```bash
 make
@@ -31,6 +31,5 @@ sudo make install
 make installcheck
 ```
 
-The machine still uses native C structs and is not portable across extension
-versions or platforms.
+The compiled `bytea` remains a private, version-specific format.
 

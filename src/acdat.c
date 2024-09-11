@@ -2,6 +2,7 @@
 
 #include "catalog/pg_type_d.h"
 #include "fmgr.h"
+#include "lib/stringinfo.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/memutils.h"
@@ -39,6 +40,7 @@ typedef struct AcdatPatternRecord
 PG_FUNCTION_INFO_V1(acdat_version);
 PG_FUNCTION_INFO_V1(acdat_compile);
 PG_FUNCTION_INFO_V1(acdat_contains);
+PG_FUNCTION_INFO_V1(acdat_replace);
 
 static void
 acdat_invalid_dictionary(const char *detail)
@@ -364,4 +366,73 @@ acdat_contains(PG_FUNCTION_ARGS)
     }
 
     PG_RETURN_BOOL(false);
+}
+
+Datum
+acdat_replace(PG_FUNCTION_ARGS)
+{
+    text *input = PG_GETARG_TEXT_PP(0);
+    bytea *dictionary = PG_GETARG_BYTEA_PP(1);
+    AcdatDictionaryHeader *header;
+    AcdatNode *nodes;
+    const char *records;
+    const char *input_data = VARDATA_ANY(input);
+    Size input_length = VARSIZE_ANY_EXHDR(input);
+    Size input_offset = 0;
+    StringInfoData output;
+
+    acdat_read_dictionary(dictionary, &header, &nodes, &records);
+    (void) nodes;
+    initStringInfo(&output);
+
+    while (input_offset < input_length)
+    {
+        const char *cursor = records;
+        const char *best_replacement = NULL;
+        uint32 best_pattern_length = 0;
+        uint32 best_replacement_length = 0;
+        uint32 i;
+
+        for (i = 0; i < header->pattern_count; i++)
+        {
+            AcdatPatternRecord record;
+            const char *pattern_data;
+            const char *replacement_data = NULL;
+
+            memcpy(&record, cursor, sizeof(record));
+            cursor += sizeof(record);
+            pattern_data = cursor;
+            cursor += record.pattern_length;
+            if (record.replacement_length != ACDAT_NO_REPLACEMENT)
+            {
+                replacement_data = cursor;
+                cursor += record.replacement_length;
+            }
+
+            if (replacement_data != NULL &&
+                record.pattern_length <= input_length - input_offset &&
+                record.pattern_length > best_pattern_length &&
+                memcmp(input_data + input_offset, pattern_data,
+                       record.pattern_length) == 0)
+            {
+                best_pattern_length = record.pattern_length;
+                best_replacement_length = record.replacement_length;
+                best_replacement = replacement_data;
+            }
+        }
+
+        if (best_replacement != NULL)
+        {
+            appendBinaryStringInfo(&output, best_replacement,
+                                   best_replacement_length);
+            input_offset += best_pattern_length;
+        }
+        else
+        {
+            appendStringInfoCharMacro(&output, input_data[input_offset]);
+            input_offset++;
+        }
+    }
+
+    PG_RETURN_TEXT_P(cstring_to_text_with_len(output.data, output.len));
 }

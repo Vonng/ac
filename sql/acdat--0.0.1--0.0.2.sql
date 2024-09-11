@@ -12,3 +12,8 @@ CREATE FUNCTION acdat_compile(
 RETURNS bytea
 AS 'MODULE_PATHNAME', 'acdat_compile'
 LANGUAGE C IMMUTABLE PARALLEL SAFE;
+
+CREATE FUNCTION acdat_replace(input text, dictionary bytea)
+RETURNS text
+AS 'MODULE_PATHNAME', 'acdat_replace'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;

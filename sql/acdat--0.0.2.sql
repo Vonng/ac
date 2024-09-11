@@ -17,3 +17,8 @@ CREATE FUNCTION acdat_contains(input text, dictionary bytea)
 RETURNS boolean
 AS 'MODULE_PATHNAME', 'acdat_contains'
 LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION acdat_replace(input text, dictionary bytea)
+RETURNS text
+AS 'MODULE_PATHNAME', 'acdat_replace'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
