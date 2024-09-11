@@ -32,4 +32,34 @@ SELECT acdat_contains(
  t
 (1 row)
 
+SELECT acdat_replace(
+    'ushers',
+    acdat_compile(
+        ARRAY['she', 'hers'],
+        ARRAY['[SHE]', '[HERS]']
+    )
+);
+ acdat_replace 
+---------------
+ u[SHE]rs
+(1 row)
+
+SELECT acdat_replace(
+    'aaa',
+    acdat_compile(ARRAY['a', 'aa'], ARRAY['X', 'Y'])
+);
+ acdat_replace 
+---------------
+ YX
+(1 row)
+
+SELECT acdat_replace(
+    '发现病毒和木马',
+    acdat_compile(ARRAY['病毒', '木马'], ARRAY['风险', '风险'])
+);
+ acdat_replace 
+---------------
+ 发现风险和风险
+(1 row)
+
 DROP EXTENSION acdat;

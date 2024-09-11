@@ -17,5 +17,22 @@ SELECT acdat_contains(
     acdat_compile(ARRAY['病毒', '木马'])
 );
 
-DROP EXTENSION acdat;
+SELECT acdat_replace(
+    'ushers',
+    acdat_compile(
+        ARRAY['she', 'hers'],
+        ARRAY['[SHE]', '[HERS]']
+    )
+);
 
+SELECT acdat_replace(
+    'aaa',
+    acdat_compile(ARRAY['a', 'aa'], ARRAY['X', 'Y'])
+);
+
+SELECT acdat_replace(
+    '发现病毒和木马',
+    acdat_compile(ARRAY['病毒', '木马'], ARRAY['风险', '风险'])
+);
+
+DROP EXTENSION acdat;
