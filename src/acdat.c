@@ -71,6 +71,7 @@ acdat_read_dictionary(bytea *dictionary,
     Size size = VARSIZE_ANY_EXHDR(dictionary);
     char *data = VARDATA_ANY(dictionary);
     AcdatDictionaryHeader *header;
+    AcdatNode *nodes;
     Size expected_records_offset;
     const char *cursor;
     const char *end;
@@ -94,6 +95,21 @@ acdat_read_dictionary(bytea *dictionary,
         header->records_offset > size ||
         header->records_bytes != size - header->records_offset)
         acdat_invalid_dictionary("record section size is inconsistent");
+
+    nodes = (AcdatNode *) (header + 1);
+    for (i = 0; i < header->node_count; i++)
+    {
+        int symbol;
+
+        if (nodes[i].fail >= header->node_count)
+            acdat_invalid_dictionary("failure link is out of range");
+        for (symbol = 0; symbol < ACDAT_ALPHABET_SIZE; symbol++)
+        {
+            if (nodes[i].next[symbol] < -1 ||
+                nodes[i].next[symbol] >= (int32) header->node_count)
+                acdat_invalid_dictionary("transition is out of range");
+        }
+    }
 
     cursor = data + header->records_offset;
     end = cursor + header->records_bytes;
@@ -123,7 +139,7 @@ acdat_read_dictionary(bytea *dictionary,
         acdat_invalid_dictionary("record section has trailing bytes");
 
     *header_out = header;
-    *nodes_out = (AcdatNode *) (header + 1);
+    *nodes_out = nodes;
     if (records_out != NULL)
         *records_out = data + header->records_offset;
 }
