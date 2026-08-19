@@ -1,0 +1,73 @@
+SELECT acdat.compile(ARRAY[''], ARRAY[1]::bigint[]);
+ERROR:  acdat compile failed: pattern 0 is empty
+SELECT acdat.compile(ARRAY['a', 'b'], ARRAY[1, 1]::bigint[]);
+ERROR:  acdat compile failed: pattern ID 1 is duplicated
+WITH machine AS (
+    SELECT acdat.compile(ARRAY['a'], ARRAY[1]::bigint[]) AS value
+)
+SELECT *
+FROM machine, LATERAL acdat.matches('a', value, 'unknown_policy');
+ERROR:  unknown acdat match policy: unknown_policy
+HINT:  Use all_overlapping, leftmost_longest, or leftmost_priority.
+WITH machine AS (
+    SELECT acdat.compile(
+        ARRAY['a', 'aa', 'aaa'], ARRAY[1, 2, 3]::bigint[]
+    ) AS value
+)
+SELECT *
+FROM machine, LATERAL acdat.matches('aaa', value, 'all_overlapping', 2);
+ERROR:  acdat scan failed: match count exceeds limit 2
+WITH machine AS (
+    SELECT acdat.compile(ARRAY['a'], ARRAY[1]::bigint[]) AS value
+)
+SELECT acdat.replace('a', value)
+FROM machine;
+ERROR:  acdat pattern ID 1 has no replacement
+WITH machine AS (
+    SELECT acdat.compile(ARRAY['a'], ARRAY[1]::bigint[]) AS value
+)
+SELECT acdat.contains(decode('61', 'hex'), value)
+FROM machine;
+ERROR:  acdat machine input kind does not match function input
+WITH machine AS (
+    SELECT acdat.compile(ARRAY['a'], ARRAY[1]::bigint[]) AS value
+), damaged AS (
+    SELECT set_byte(acdat.export(value), 0, 0) AS value
+    FROM machine
+)
+SELECT acdat.validate(value) AS damaged_is_valid
+FROM damaged;
+ damaged_is_valid 
+------------------
+ f
+(1 row)
+
+WITH machine AS (
+    SELECT acdat.compile(ARRAY['a'], ARRAY[1]::bigint[]) AS value
+), damaged AS (
+    SELECT set_byte(acdat.export(value), 0, 0) AS value
+    FROM machine
+)
+SELECT acdat.import(value)
+FROM damaged;
+ERROR:  invalid acdat machine: machine magic is invalid
+CREATE TEMP TABLE active_build AS
+WITH machine AS (
+    SELECT acdat.compile(ARRAY['a'], ARRAY[1]::bigint[]) AS value
+), published AS (
+    SELECT acdat.publish('errors', 1, value) AS build_id
+    FROM machine
+)
+SELECT build_id FROM published;
+SELECT acdat.activate('errors', build_id)
+FROM active_build;
+ activate 
+----------
+ 
+(1 row)
+
+SELECT acdat.retire_build('errors', build_id)
+FROM active_build;
+ERROR:  cannot retire the active acdat build
+CONTEXT:  PL/pgSQL function acdat.retire_build(text,bytea) line 13 at RAISE
+-- end of acdat_errors

@@ -1,4 +1,6 @@
-comment = 'Experimental Aho-Corasick matcher for PostgreSQL'
-default_version = '0.0.2'
+comment = 'Compiled multi-pattern matching for PostgreSQL'
+default_version = '0.1.0'
 module_pathname = '$libdir/acdat'
-relocatable = true
+relocatable = false
+schema = 'acdat'
+trusted = false
