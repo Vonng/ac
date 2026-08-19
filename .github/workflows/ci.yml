@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  core:
+    name: C core sanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run standalone core tests
+        run: make core-test
+
+  postgres:
+    name: PostgreSQL ${{ matrix.pg }}
+    runs-on: ubuntu-latest
+    container: pgxn/pgxn-tools:1.7.1
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [14, 15, 16, 17, 18]
+    steps:
+      - name: Start PostgreSQL ${{ matrix.pg }}
+        run: pg-start ${{ matrix.pg }}
+      - uses: actions/checkout@v4
+      - name: Build and run PGXS regression tests
+        run: pg-build-test
+      - name: Run dump/restore and TOAST cache smoke tests
+        if: matrix.pg == 18
+        run: |
+          make dump-restore-test
+          make cache-smoke-test
