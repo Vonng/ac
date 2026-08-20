@@ -27,6 +27,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build and run PGXS regression tests
         run: pg-build-test
+      - name: Run documented end-to-end SQL demo
+        if: matrix.pg == 18
+        run: psql -X -v ON_ERROR_STOP=1 -d postgres -f examples/demo.sql
       - name: Run dump/restore and TOAST cache smoke tests
         if: matrix.pg == 18
         run: |

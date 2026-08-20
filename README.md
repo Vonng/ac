@@ -176,7 +176,14 @@ The current validation matrix covers PostgreSQL 14–18 on Linux amd64 with
 verification remain release gates.
 
 See [PRD.md](PRD.md) for the full product and format contract and
-[BENCHMARK.md](BENCHMARK.md) for measured engineering baselines.
+[BENCHMARK.md](BENCHMARK.md) for measured engineering baselines. A detailed
+Chinese usage guide is available at [docs/usage.md](docs/usage.md), together
+with a runnable end-to-end example at
+[examples/demo.sql](examples/demo.sql):
+
+```bash
+psql -X -v ON_ERROR_STOP=1 -d your_database -f examples/demo.sql
+```
 
 ## Safety and lifecycle
 
