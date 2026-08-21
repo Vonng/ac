@@ -119,6 +119,15 @@ add_u64(uint64_t *value, uint64_t addition)
     return true;
 }
 
+static bool
+checked_array_size(uint32_t count, size_t element_size, size_t *result)
+{
+    if (element_size != 0 && (size_t) count > SIZE_MAX / element_size)
+        return false;
+    *result = (size_t) count * element_size;
+    return true;
+}
+
 static uint64_t
 align_terminal_section(uint64_t value)
 {
@@ -790,15 +799,14 @@ acdat_materialize_machine(const AcdatMachineView *view,
                          "allocator callbacks are incomplete");
         return ACDAT_ERR_INVALID_ARGUMENT;
     }
-    if ((size_t) view->slot_count > SIZE_MAX / sizeof(uint32_t) ||
-        (size_t) view->pattern_count > SIZE_MAX / sizeof(AcdatTerminal))
+    if (!checked_array_size(view->slot_count, sizeof(uint32_t), &slot_bytes) ||
+        !checked_array_size(view->pattern_count, sizeof(AcdatTerminal),
+                            &terminal_bytes))
     {
         format_set_error(error, ACDAT_ERR_SIZE_OVERFLOW,
                          "materialized machine exceeds addressable memory");
         return ACDAT_ERR_SIZE_OVERFLOW;
     }
-    slot_bytes = (size_t) view->slot_count * sizeof(uint32_t);
-    terminal_bytes = (size_t) view->pattern_count * sizeof(AcdatTerminal);
 
     automaton = format_alloc(&allocator, sizeof(*automaton));
     if (automaton == NULL)
