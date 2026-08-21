@@ -196,3 +196,7 @@ the TOAST pointer/build fingerprint, so a large value is not detoasted per row.
 when application objects depend on `acdat.machine`; **using `CASCADE` can delete
 dependent user columns or objects**. Inventory dependencies and back up source
 patterns before uninstalling.
+
+## License
+
+`acdat` is distributed under the [PostgreSQL License](LICENSE).
