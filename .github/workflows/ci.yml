@@ -5,11 +5,22 @@ on:
   pull_request:
 
 jobs:
+  metadata:
+    name: PGXN metadata
+    runs-on: ubuntu-latest
+    container: pgxn/pgxn-tools:1.7.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate PGXN metadata
+        run: pgxn validate-meta
+
   core:
     name: C core sanitizer
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate PGXN metadata
+        run: make check-meta
       - name: Run standalone core tests
         run: make core-test
 

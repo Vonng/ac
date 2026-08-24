@@ -29,6 +29,7 @@ The extension and its non-relocatable schema are both named `acdat`:
 ```ini
 relocatable = false
 schema = 'acdat'
+superuser = true
 trusted = false
 ```
 
@@ -182,11 +183,16 @@ The current validation matrix covers PostgreSQL 14–18 on Linux amd64 with
 `-Werror`, plus PostgreSQL 18.4 on macOS arm64. Linux arm64 and package-lab
 verification remain release gates.
 
-See [PRD.md](PRD.md) for the full product and format contract and
-[BENCHMARK.md](BENCHMARK.md) for measured engineering baselines. A detailed
-Chinese usage guide is available at [docs/usage.md](docs/usage.md), together
-with a runnable end-to-end example at
-[examples/demo.sql](examples/demo.sql):
+Documentation:
+
+- [Usage guide](docs/usage.md)
+- [Performance report](docs/performance-2026-08-24.md)
+- [Benchmark notes](docs/BENCHMARK.md)
+- [Changelog](docs/CHANGELOG.md)
+- [Version 0.2.0 design](docs/v0.2.0.md)
+- [Product and machine-format contract](PRD.md)
+
+A runnable end-to-end example is available at [examples/demo.sql](examples/demo.sql):
 
 ```bash
 psql -X -v ON_ERROR_STOP=1 -d your_database -f examples/demo.sql
