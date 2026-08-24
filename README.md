@@ -192,6 +192,15 @@ with a runnable end-to-end example at
 psql -X -v ON_ERROR_STOP=1 -d your_database -f examples/demo.sql
 ```
 
+## Legacy Go benchmark data
+
+The original 2018 Go implementation remains on the
+[`master`](https://github.com/Vonng/ac/tree/master) branch. Its optional
+10,318,163-line benchmark corpus is distributed as the
+[`benchmark-data-2018`](https://github.com/Vonng/ac/releases/tag/benchmark-data-2018)
+release instead of being stored in Git history. The corpus is not required to
+build or test the PostgreSQL extension.
+
 ## Safety and lifecycle
 
 The machine type has a self-describing, checksummed, little-endian format with
