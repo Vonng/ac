@@ -63,13 +63,7 @@ cross-version-test:
 check-meta:
 	@command -v jq >/dev/null 2>&1 || \
 		{ echo "check-meta requires jq" >&2; exit 1; }
-	jq -e --arg extension "$(EXTENSION)" --arg version "$(EXTVERSION)" '\
-		.name == $$extension and \
-		.version == $$version and \
-		.provides[$$extension].version == $$version and \
-		.provides[$$extension].file == "sql/$(EXTENSION)--$(EXTVERSION).sql" and \
-		."meta-spec".version == "1.0.0" \
-	' META.json >/dev/null
+	jq -e --arg extension "$(EXTENSION)" --arg version "$(EXTVERSION)" '.name == $$extension and .version == $$version and .provides[$$extension].version == $$version and .provides[$$extension].file == "sql/$(EXTENSION)--$(EXTVERSION).sql" and ."meta-spec".version == "1.0.0"' META.json >/dev/null
 	test -f "sql/$(EXTENSION)--$(EXTVERSION).sql"
 	test -f "sql/$(EXTENSION)--0.1.0--$(EXTVERSION).sql"
 	grep -Eq "^default_version[[:space:]]*=[[:space:]]*'$(EXTVERSION)'[[:space:]]*$$" \
