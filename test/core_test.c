@@ -24,6 +24,11 @@ typedef struct MatchList
     size_t count;
 } MatchList;
 
+typedef struct ProgressCounter
+{
+    uint32_t calls;
+} ProgressCounter;
+
 static bool
 collect_match(const AcdatMatch *match, void *context)
 {
@@ -32,6 +37,14 @@ collect_match(const AcdatMatch *match, void *context)
     CHECK(list->count < ARRAY_LENGTH(list->matches));
     list->matches[list->count++] = *match;
     return true;
+}
+
+static void
+count_progress(void *context)
+{
+    ProgressCounter *counter = (ProgressCounter *) context;
+
+    counter->calls++;
 }
 
 static void
@@ -97,6 +110,104 @@ test_classic_failure_links(void)
     CHECK(list.matches[2].start_byte == 3);
     CHECK(list.matches[2].byte_length == 4);
     acdat_free(automaton);
+}
+
+static void
+test_runtime_output_chain(void)
+{
+    static const AcdatPatternInput patterns[] = {
+        {(const uint8_t *) "he", 2, 2, 1, 0, NULL, 0, false},
+        {(const uint8_t *) "she", 3, 3, 2, 0, NULL, 0, false},
+        {(const uint8_t *) "his", 3, 3, 3, 0, NULL, 0, false},
+        {(const uint8_t *) "hers", 4, 4, 4, 0, NULL, 0, false}
+    };
+    static const uint8_t input[] = "ushers";
+    AcdatAutomaton *legacy = build_or_die(patterns, ARRAY_LENGTH(patterns));
+    AcdatAutomaton *prepared = build_or_die(patterns, ARRAY_LENGTH(patterns));
+    MatchList legacy_matches = {0};
+    MatchList prepared_matches = {0};
+    AcdatError error;
+    uint64_t legacy_count = 0;
+    uint64_t prepared_count = 0;
+    uint32_t index;
+    uint32_t serialized_size;
+    uint8_t *serialized;
+    AcdatFormatOptions options;
+
+    CHECK(acdat_serialized_size(prepared, &serialized_size, &error) ==
+          ACDAT_OK);
+    serialized = malloc(serialized_size);
+    CHECK(serialized != NULL);
+    memset(&options, 0, sizeof(options));
+    options.input_kind = ACDAT_INPUT_BYTEA;
+    CHECK(acdat_prepare_runtime(prepared, &error) == ACDAT_OK);
+    CHECK(prepared->output_link == NULL);
+    CHECK(acdat_prepare_runtime(prepared, &error) == ACDAT_OK);
+    CHECK(acdat_serialized_size(prepared, &serialized_size, &error) ==
+          ACDAT_ERR_INVALID_ARGUMENT);
+    CHECK(acdat_serialize(prepared, &options, serialized, serialized_size,
+                          &error) == ACDAT_ERR_INVALID_ARGUMENT);
+    CHECK(strstr(error.message, "runtime-prepared") != NULL);
+    CHECK(acdat_scan(legacy, input, sizeof(input) - 1, collect_match,
+                     &legacy_matches, 100, &legacy_count, &error) == ACDAT_OK);
+    CHECK(acdat_scan(prepared, input, sizeof(input) - 1, collect_match,
+                     &prepared_matches, 100, &prepared_count, &error) ==
+          ACDAT_OK);
+    CHECK(legacy_count == prepared_count);
+    CHECK(legacy_matches.count == prepared_matches.count);
+    for (index = 0; index < legacy_matches.count; index++)
+    {
+        const AcdatMatch *left = &legacy_matches.matches[index];
+        const AcdatMatch *right = &prepared_matches.matches[index];
+
+        CHECK(left->pattern_id == right->pattern_id);
+        CHECK(left->start_byte == right->start_byte);
+        CHECK(left->byte_length == right->byte_length);
+        CHECK(left->char_length == right->char_length);
+        CHECK(left->priority == right->priority);
+        CHECK(left->canonical_ordinal == right->canonical_ordinal);
+        CHECK(left->terminal_index == right->terminal_index);
+    }
+    CHECK(acdat_contains(prepared, input, sizeof(input) - 1));
+    CHECK(!acdat_contains(prepared, (const uint8_t *) "xyz", 3));
+
+    acdat_free(prepared);
+    acdat_free(legacy);
+    free(serialized);
+}
+
+static void
+test_runtime_root_table_all_bytes(void)
+{
+    static const uint8_t byte_zero[] = {0x00};
+    static const uint8_t byte_ascii[] = {0x7F};
+    static const uint8_t byte_max[] = {0xFF};
+    static const AcdatPatternInput patterns[] = {
+        {byte_zero, 1, 1, 41, 0, NULL, 0, false},
+        {byte_ascii, 1, 1, 42, 0, NULL, 0, false},
+        {byte_max, 1, 1, 43, 0, NULL, 0, false}
+    };
+    AcdatAutomaton *legacy = build_or_die(patterns, ARRAY_LENGTH(patterns));
+    AcdatAutomaton *prepared = build_or_die(patterns, ARRAY_LENGTH(patterns));
+    AcdatError error;
+    uint32_t symbol;
+
+    CHECK(acdat_prepare_runtime(prepared, &error) == ACDAT_OK);
+    CHECK(prepared->root_next != NULL);
+    for (symbol = 0; symbol < 256U; symbol++)
+    {
+        uint8_t input = (uint8_t) symbol;
+        uint32_t transition = acdat_direct_transition(
+            legacy, ACDAT_ROOT_STATE, input);
+        uint32_t expected = transition == 0 ? ACDAT_ROOT_STATE : transition;
+
+        CHECK(prepared->root_next[symbol] == expected);
+        CHECK(acdat_contains(legacy, &input, 1) ==
+              acdat_contains(prepared, &input, 1));
+    }
+
+    acdat_free(prepared);
+    acdat_free(legacy);
 }
 
 static void
@@ -196,9 +307,53 @@ test_validation_errors(void)
 }
 
 static void
+test_build_control_and_metrics(void)
+{
+    static const AcdatPatternInput patterns[] = {
+        {(const uint8_t *) "alpha", 5, 5, 31, 0, NULL, 0, false},
+        {(const uint8_t *) "alphabet", 8, 8, 32, 0, NULL, 0, false},
+        {(const uint8_t *) "beta", 4, 4, 33, 0, NULL, 0, false}
+    };
+    AcdatBuildControl control;
+    AcdatBuildMetrics metrics;
+    AcdatAutomaton *automaton = NULL;
+    AcdatError error;
+    ProgressCounter counter = {0};
+    AcdatStatus status;
+
+    memset(&control, 0, sizeof(control));
+    control.progress_callback = count_progress;
+    control.progress_context = &counter;
+    status = acdat_build_ex(patterns, ARRAY_LENGTH(patterns), NULL, &control,
+                            &metrics, &automaton, &error);
+    CHECK(status == ACDAT_OK);
+    CHECK(automaton != NULL);
+    CHECK(counter.calls >= 3);
+    CHECK(metrics.trie_bytes == 17);
+    CHECK(metrics.base_candidates > 0);
+    CHECK(metrics.slot_checks > 0);
+    CHECK(metrics.failure_steps > 0);
+    CHECK(metrics.work_units == metrics.trie_bytes +
+          metrics.base_candidates + metrics.slot_checks +
+          metrics.failure_steps);
+    acdat_free(automaton);
+
+    memset(&control, 0, sizeof(control));
+    control.base_candidate_limit = 1;
+    automaton = NULL;
+    status = acdat_build_ex(patterns, ARRAY_LENGTH(patterns), NULL, &control,
+                            &metrics, &automaton, &error);
+    CHECK(status == ACDAT_ERR_SIZE_OVERFLOW);
+    CHECK(automaton == NULL);
+    CHECK(metrics.base_candidates > control.base_candidate_limit);
+    CHECK(strstr(error.message, "base-candidate limit 1") != NULL);
+}
+
+static void
 test_empty_automaton(void)
 {
     AcdatAutomaton *automaton = build_or_die(NULL, 0);
+    uint8_t byte = 0;
     uint64_t count = 123;
     AcdatError error;
 
@@ -208,6 +363,12 @@ test_empty_automaton(void)
     CHECK(acdat_scan(automaton, (const uint8_t *) "anything", 8,
                      NULL, NULL, 0, &count, &error) == ACDAT_OK);
     CHECK(count == 0);
+    CHECK(acdat_prepare_runtime(automaton, &error) == ACDAT_OK);
+    CHECK(automaton->root_next != NULL);
+    CHECK(automaton->output_link == NULL);
+    CHECK(!acdat_contains(automaton, (const uint8_t *) "anything", 8));
+    CHECK(acdat_scan(automaton, &byte, UINT32_MAX, NULL, NULL, 0,
+                     &count, &error) == ACDAT_ERR_SIZE_OVERFLOW);
     acdat_free(automaton);
 }
 
@@ -330,6 +491,8 @@ test_random_differential(void)
         }
 
         automaton = build_or_die(patterns, PATTERN_COUNT);
+        if ((round & 1U) != 0)
+            CHECK(acdat_prepare_runtime(automaton, &error) == ACDAT_OK);
         status = acdat_scan(automaton, input, INPUT_LENGTH, collect_match,
                             &list, ARRAY_LENGTH(list.matches), &count, &error);
         CHECK(status == ACDAT_OK);
@@ -418,6 +581,8 @@ test_format_round_trip(void)
     status = acdat_materialize_machine(&view, NULL, &restored, &error);
     CHECK(status == ACDAT_OK);
     compare_automata(source, restored);
+    CHECK(acdat_prepare_runtime(restored, &error) == ACDAT_OK);
+    CHECK(restored->output_link == NULL);
     CHECK(acdat_contains(restored, (const uint8_t *) "the alphabet", 12));
 
     acdat_free(restored);
@@ -490,9 +655,12 @@ int
 main(void)
 {
     test_classic_failure_links();
+    test_runtime_output_chain();
+    test_runtime_root_table_all_bytes();
     test_overlapping_matches_and_limit();
     test_utf8_bytes();
     test_validation_errors();
+    test_build_control_and_metrics();
     test_empty_automaton();
     test_deterministic_build();
     test_random_differential();

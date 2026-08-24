@@ -104,3 +104,6 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# PGXS-generated extension install script
+sql/acdat--0.2.0.sql

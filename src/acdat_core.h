@@ -38,6 +38,24 @@ typedef struct AcdatAllocator
     void (*free)(void *context, void *pointer);
 } AcdatAllocator;
 
+typedef void (*AcdatProgressCallback)(void *context);
+
+typedef struct AcdatBuildControl
+{
+    AcdatProgressCallback progress_callback;
+    void *progress_context;
+    uint64_t base_candidate_limit;
+} AcdatBuildControl;
+
+typedef struct AcdatBuildMetrics
+{
+    uint64_t work_units;
+    uint64_t trie_bytes;
+    uint64_t base_candidates;
+    uint64_t slot_checks;
+    uint64_t failure_steps;
+} AcdatBuildMetrics;
+
 typedef struct AcdatPatternInput
 {
     const uint8_t *pattern;
@@ -78,6 +96,7 @@ typedef struct AcdatAutomaton
     uint32_t *fail;
     uint32_t *terminal_head;
     uint32_t *output_link;
+    uint32_t *root_next;
     AcdatTerminal *terminals;
     uint8_t *replacement_arena;
 } AcdatAutomaton;
@@ -94,15 +113,25 @@ typedef struct AcdatMatch
 } AcdatMatch;
 
 typedef bool (*AcdatMatchCallback)(const AcdatMatch *match, void *context);
-typedef void (*AcdatProgressCallback)(void *context);
 
 AcdatAllocator acdat_default_allocator(void);
+
+AcdatStatus acdat_build_ex(const AcdatPatternInput *patterns,
+                           size_t pattern_count,
+                           const AcdatAllocator *allocator,
+                           const AcdatBuildControl *control,
+                           AcdatBuildMetrics *metrics,
+                           AcdatAutomaton **result,
+                           AcdatError *error);
 
 AcdatStatus acdat_build(const AcdatPatternInput *patterns,
                         size_t pattern_count,
                         const AcdatAllocator *allocator,
                         AcdatAutomaton **result,
                         AcdatError *error);
+
+AcdatStatus acdat_prepare_runtime(AcdatAutomaton *automaton,
+                                  AcdatError *error);
 
 void acdat_free(AcdatAutomaton *automaton);
 

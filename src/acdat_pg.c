@@ -25,8 +25,31 @@
 PG_MODULE_MAGIC;
 
 #define ACDAT_COMPILER_VERSION_MAJOR 0U
-#define ACDAT_COMPILER_VERSION_MINOR 1U
+#define ACDAT_COMPILER_VERSION_MINOR 2U
 #define ACDAT_COMPILER_VERSION_PATCH 0U
+#define ACDAT_MIN_BASE_CANDIDATES 1048576ULL
+#define ACDAT_BASE_CANDIDATES_PER_PATTERN_BYTE 128ULL
+
+static void check_postgres_interrupts(void *context);
+
+static uint64
+default_base_candidate_limit(const AcdatPatternInput *patterns,
+                             uint32 pattern_count)
+{
+    uint64 limit = ACDAT_MIN_BASE_CANDIDATES;
+    uint32 index;
+
+    for (index = 0; index < pattern_count; index++)
+    {
+        uint64 bytes = patterns[index].byte_length;
+
+        if (bytes > (UINT64_MAX - limit) /
+                    ACDAT_BASE_CANDIDATES_PER_PATTERN_BYTE)
+            return UINT64_MAX;
+        limit += bytes * ACDAT_BASE_CANDIDATES_PER_PATTERN_BYTE;
+    }
+    return limit;
+}
 
 typedef struct PgPatternWork
 {
@@ -441,6 +464,7 @@ compile_patterns(AcdatPatternInput *patterns, uint32 pattern_count,
 {
     AcdatAutomaton *automaton = NULL;
     AcdatAllocator allocator = pg_allocator(CurrentMemoryContext);
+    AcdatBuildControl build_control;
     AcdatFormatOptions format_options;
     AcdatError error;
     AcdatStatus status;
@@ -451,7 +475,12 @@ compile_patterns(AcdatPatternInput *patterns, uint32 pattern_count,
     if (input_kind == ACDAT_INPUT_TEXT)
         require_supported_text_encoding();
 
-    status = acdat_build(patterns, pattern_count, &allocator, &automaton, &error);
+    memset(&build_control, 0, sizeof(build_control));
+    build_control.progress_callback = check_postgres_interrupts;
+    build_control.base_candidate_limit =
+        default_base_candidate_limit(patterns, pattern_count);
+    status = acdat_build_ex(patterns, pattern_count, &allocator,
+                            &build_control, NULL, &automaton, &error);
     if (status != ACDAT_OK)
         raise_core_error("compile", status, &error);
 
@@ -849,12 +878,17 @@ get_machine_cache(FunctionCallInfo fcinfo, Datum machine_datum,
                                        sizeof(*cache));
         fcinfo->flinfo->fn_extra = cache;
     }
-    if (cache->automaton_context != NULL)
-        MemoryContextDelete(cache->automaton_context);
+    {
+        MemoryContext old_context = cache->automaton_context;
+
+        cache->automaton_context = NULL;
+        cache->automaton = NULL;
+        if (old_context != NULL)
+            MemoryContextDelete(old_context);
+    }
     cache->automaton_context = AllocSetContextCreate(fcinfo->flinfo->fn_mcxt,
                                                      "acdat machine cache",
                                                      ALLOCSET_DEFAULT_SIZES);
-    cache->automaton = NULL;
 
     {
         AcdatMachineView view;
@@ -867,6 +901,9 @@ get_machine_cache(FunctionCallInfo fcinfo, Datum machine_datum,
                                            &cache->automaton, &error);
         if (status != ACDAT_OK)
             raise_core_error("materialize machine", status, &error);
+        status = acdat_prepare_runtime(cache->automaton, &error);
+        if (status != ACDAT_OK)
+            raise_core_error("prepare machine runtime", status, &error);
         cache->payload_size = size;
         cache->input_kind = view.input_kind;
         cache->database_encoding = view.database_encoding;

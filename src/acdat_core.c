@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define ACDAT_PROGRESS_INTERVAL 65536U
+
 typedef struct TrieNode
 {
     uint32_t first_edge;
@@ -38,6 +40,8 @@ typedef struct PatternIdWork
 typedef struct AcdatBuilder
 {
     AcdatAllocator allocator;
+    AcdatBuildControl control;
+    AcdatBuildMetrics metrics;
 
     TrieNode *nodes;
     uint32_t node_count;
@@ -60,7 +64,6 @@ typedef struct AcdatBuilder
     uint32_t *fail;
     uint32_t *terminal_head;
     uint32_t *output_link;
-    uint8_t *used_base;
     uint32_t slot_capacity;
     uint32_t max_used_slot;
     uint32_t next_check_pos;
@@ -264,15 +267,12 @@ reserve_slots(AcdatBuilder *builder, uint32_t needed, AcdatError *error)
     uint32_t old_capacity = builder->slot_capacity;
     uint32_t new_capacity;
     size_t u32_bytes;
-    size_t u8_bytes;
     uint32_t *new_u32;
-    uint8_t *new_u8;
 
     if (needed <= old_capacity)
         return ACDAT_OK;
     if (!next_capacity(old_capacity, needed, &new_capacity) ||
-        !checked_array_size(new_capacity, sizeof(uint32_t), &u32_bytes) ||
-        !checked_array_size(new_capacity, sizeof(uint8_t), &u8_bytes))
+        !checked_array_size(new_capacity, sizeof(uint32_t), &u32_bytes))
     {
         set_error(error, ACDAT_ERR_SIZE_OVERFLOW, SIZE_MAX,
                   "DAT slot capacity exceeds addressable memory");
@@ -296,13 +296,6 @@ reserve_slots(AcdatBuilder *builder, uint32_t needed, AcdatError *error)
     GROW_U32(terminal_head);
     GROW_U32(output_link);
 #undef GROW_U32
-
-    new_u8 = builder_realloc(builder, builder->used_base, u8_bytes);
-    if (new_u8 == NULL)
-        goto out_of_memory;
-    builder->used_base = new_u8;
-    memset(builder->used_base + old_capacity, 0,
-           (size_t) (new_capacity - old_capacity));
 
     builder->slot_capacity = new_capacity;
     return ACDAT_OK;
@@ -526,6 +519,12 @@ build_trie(AcdatBuilder *builder, const PatternWork *work,
         uint32_t node = root;
         uint32_t byte_index;
 
+        builder->metrics.trie_bytes += pattern->byte_length;
+        if (builder->control.progress_callback != NULL &&
+            (pattern_index & (ACDAT_PROGRESS_INTERVAL - 1U)) == 0)
+            builder->control.progress_callback(
+                builder->control.progress_context);
+
         for (byte_index = 0; byte_index < pattern->byte_length; byte_index++)
         {
             status = find_or_add_child(builder, node,
@@ -566,6 +565,24 @@ find_base(AcdatBuilder *builder, const TrieNode *node, uint32_t *base_value,
         uint32_t candidate;
         uint32_t edge_handle;
         bool available = true;
+        AcdatStatus status;
+
+        builder->metrics.base_candidates++;
+        if (builder->control.base_candidate_limit != 0 &&
+            builder->metrics.base_candidates >
+            builder->control.base_candidate_limit)
+        {
+            set_error(error, ACDAT_ERR_SIZE_OVERFLOW, SIZE_MAX,
+                      "build base-candidate limit %llu exceeded",
+                      (unsigned long long)
+                      builder->control.base_candidate_limit);
+            return ACDAT_ERR_SIZE_OVERFLOW;
+        }
+        if (builder->control.progress_callback != NULL &&
+            (builder->metrics.base_candidates &
+             (ACDAT_PROGRESS_INTERVAL - 1U)) == 0)
+            builder->control.progress_callback(
+                builder->control.progress_context);
 
         if (position > UINT32_MAX)
         {
@@ -582,26 +599,19 @@ find_base(AcdatBuilder *builder, const TrieNode *node, uint32_t *base_value,
         }
         candidate = (uint32_t) candidate64;
 
-        if (candidate >= builder->slot_capacity)
-        {
-            AcdatStatus status = reserve_slots(builder, candidate + 1U, error);
-            if (status != ACDAT_OK)
-                return status;
-        }
         if (position < builder->slot_capacity &&
             builder->check[(uint32_t) position] != 0)
         {
             occupied_positions++;
             continue;
         }
-        if (builder->used_base[candidate] != 0)
-            continue;
         edge_handle = node->first_edge;
         while (edge_handle != ACDAT_NO_INDEX)
         {
             const TrieEdge *edge = &builder->edges[edge_handle - 1U];
             uint64_t slot64 = candidate64 + (uint32_t) edge->symbol + 1U;
-            AcdatStatus status;
+
+            builder->metrics.slot_checks++;
 
             if (slot64 >= UINT32_MAX)
             {
@@ -631,7 +641,6 @@ find_base(AcdatBuilder *builder, const TrieNode *node, uint32_t *base_value,
              */
             if (occupied_positions * 100U >= scanned_positions * 95U)
                 builder->next_check_pos = (uint32_t) position;
-            builder->used_base[candidate] = 1;
             *base_value = candidate;
             return ACDAT_OK;
         }
@@ -739,9 +748,16 @@ pack_dat(AcdatBuilder *builder, AcdatError *error)
 
             for (;;)
             {
-                uint32_t transition = direct_transition_arrays(builder,
-                                                               candidate,
-                                                               node->symbol);
+                uint32_t transition;
+
+                builder->metrics.failure_steps++;
+                if (builder->control.progress_callback != NULL &&
+                    (builder->metrics.failure_steps &
+                     (ACDAT_PROGRESS_INTERVAL - 1U)) == 0)
+                    builder->control.progress_callback(
+                        builder->control.progress_context);
+                transition = direct_transition_arrays(builder, candidate,
+                                                      node->symbol);
                 if (transition != 0 && transition != state)
                 {
                     failure = transition;
@@ -776,15 +792,16 @@ free_builder(AcdatBuilder *builder)
     builder_free_pointer(builder, builder->fail);
     builder_free_pointer(builder, builder->terminal_head);
     builder_free_pointer(builder, builder->output_link);
-    builder_free_pointer(builder, builder->used_base);
     builder_free_pointer(builder, builder->queue);
     memset(builder, 0, sizeof(*builder));
 }
 
 AcdatStatus
-acdat_build(const AcdatPatternInput *patterns, size_t pattern_count,
-            const AcdatAllocator *allocator_argument, AcdatAutomaton **result,
-            AcdatError *error)
+acdat_build_ex(const AcdatPatternInput *patterns, size_t pattern_count,
+               const AcdatAllocator *allocator_argument,
+               const AcdatBuildControl *control,
+               AcdatBuildMetrics *metrics, AcdatAutomaton **result,
+               AcdatError *error)
 {
     AcdatBuilder builder;
     AcdatAllocator allocator;
@@ -800,6 +817,8 @@ acdat_build(const AcdatPatternInput *patterns, size_t pattern_count,
 
     if (result != NULL)
         *result = NULL;
+    if (metrics != NULL)
+        memset(metrics, 0, sizeof(*metrics));
     if (error != NULL)
         memset(error, 0, sizeof(*error));
     if (result == NULL)
@@ -832,6 +851,10 @@ acdat_build(const AcdatPatternInput *patterns, size_t pattern_count,
 
     memset(&builder, 0, sizeof(builder));
     builder.allocator = allocator;
+    if (control != NULL)
+        builder.control = *control;
+    if (builder.control.progress_callback != NULL)
+        builder.control.progress_callback(builder.control.progress_context);
     count32 = (uint32_t) pattern_count;
 
     if (count32 > 0)
@@ -909,8 +932,12 @@ acdat_build(const AcdatPatternInput *patterns, size_t pattern_count,
 
     if (count32 > 1)
     {
+        if (builder.control.progress_callback != NULL)
+            builder.control.progress_callback(builder.control.progress_context);
         qsort(work, count32, sizeof(PatternWork), compare_pattern_work);
         qsort(ids, count32, sizeof(PatternIdWork), compare_pattern_ids);
+        if (builder.control.progress_callback != NULL)
+            builder.control.progress_callback(builder.control.progress_context);
         for (index = 1; index < count32; index++)
         {
             if (ids[index - 1U].pattern_id == ids[index].pattern_id)
@@ -966,12 +993,96 @@ acdat_build(const AcdatPatternInput *patterns, size_t pattern_count,
     *result = automaton;
 
 cleanup:
+    builder.metrics.work_units = builder.metrics.trie_bytes +
+        builder.metrics.base_candidates + builder.metrics.slot_checks +
+        builder.metrics.failure_steps;
+    if (metrics != NULL)
+        *metrics = builder.metrics;
     builder_free_pointer(&builder, work);
     builder_free_pointer(&builder, ids);
     free_builder(&builder);
-    if (status != ACDAT_OK && automaton != NULL)
-        acdat_free(automaton);
     return status;
+}
+
+AcdatStatus
+acdat_build(const AcdatPatternInput *patterns, size_t pattern_count,
+            const AcdatAllocator *allocator_argument, AcdatAutomaton **result,
+            AcdatError *error)
+{
+    return acdat_build_ex(patterns, pattern_count, allocator_argument, NULL,
+                          NULL, result, error);
+}
+
+AcdatStatus
+acdat_prepare_runtime(AcdatAutomaton *automaton, AcdatError *error)
+{
+    uint32_t state;
+    uint32_t symbol;
+
+    if (error != NULL)
+        memset(error, 0, sizeof(*error));
+    if (automaton == NULL)
+    {
+        set_error(error, ACDAT_ERR_INVALID_ARGUMENT, SIZE_MAX,
+                  "automaton pointer is NULL");
+        return ACDAT_ERR_INVALID_ARGUMENT;
+    }
+    if (automaton->output_link == NULL && automaton->root_next != NULL)
+        return ACDAT_OK;
+
+    if (automaton->root_next == NULL)
+    {
+        automaton->root_next = automaton->allocator.alloc(
+            automaton->allocator.context, 256U * sizeof(uint32_t));
+        if (automaton->root_next == NULL)
+        {
+            set_error(error, ACDAT_ERR_OUT_OF_MEMORY, SIZE_MAX,
+                      "unable to allocate root transition table");
+            return ACDAT_ERR_OUT_OF_MEMORY;
+        }
+        for (symbol = 0; symbol < 256U; symbol++)
+        {
+            uint32_t transition = acdat_direct_transition(
+                automaton, ACDAT_ROOT_STATE, (uint8_t) symbol);
+
+            automaton->root_next[symbol] = transition == 0 ?
+                ACDAT_ROOT_STATE : transition;
+        }
+    }
+
+    if (automaton->output_link == NULL)
+        return ACDAT_OK;
+
+    for (state = ACDAT_ROOT_STATE; state < automaton->slot_count; state++)
+    {
+        uint32_t head;
+        uint32_t inherited_state;
+
+        if (automaton->check[state] == 0)
+            continue;
+        head = automaton->terminal_head[state];
+        inherited_state = automaton->output_link[state];
+        if (inherited_state == ACDAT_NO_INDEX)
+            continue;
+        if (head == ACDAT_NO_INDEX)
+            automaton->terminal_head[state] =
+                automaton->terminal_head[inherited_state];
+        else
+        {
+            uint32_t tail = head;
+
+            while (automaton->terminals[tail - 1U].next_terminal !=
+                   ACDAT_NO_INDEX)
+                tail = automaton->terminals[tail - 1U].next_terminal;
+            automaton->terminals[tail - 1U].next_terminal =
+                automaton->terminal_head[inherited_state];
+        }
+    }
+
+    automaton->allocator.free(automaton->allocator.context,
+                              automaton->output_link);
+    automaton->output_link = NULL;
+    return ACDAT_OK;
 }
 
 void
@@ -995,6 +1106,8 @@ acdat_free(AcdatAutomaton *automaton)
         allocator.free(allocator.context, automaton->terminal_head);
     if (automaton->output_link != NULL)
         allocator.free(allocator.context, automaton->output_link);
+    if (automaton->root_next != NULL)
+        allocator.free(allocator.context, automaton->root_next);
     if (automaton->terminals != NULL)
         allocator.free(allocator.context, automaton->terminals);
     if (automaton->replacement_arena != NULL)
@@ -1021,12 +1134,19 @@ acdat_direct_transition(const AcdatAutomaton *automaton, uint32_t state,
 static uint32_t
 advance_state(const AcdatAutomaton *automaton, uint32_t state, uint8_t symbol)
 {
-    uint32_t transition = acdat_direct_transition(automaton, state, symbol);
+    uint32_t transition;
+
+    if (state == ACDAT_ROOT_STATE && automaton->root_next != NULL)
+        return automaton->root_next[symbol];
+    transition = acdat_direct_transition(automaton, state, symbol);
 
     while (transition == 0 && state != ACDAT_ROOT_STATE)
     {
         state = automaton->fail[state];
-        transition = acdat_direct_transition(automaton, state, symbol);
+        if (state == ACDAT_ROOT_STATE && automaton->root_next != NULL)
+            transition = automaton->root_next[symbol];
+        else
+            transition = acdat_direct_transition(automaton, state, symbol);
     }
     return transition == 0 ? ACDAT_ROOT_STATE : transition;
 }
@@ -1057,7 +1177,8 @@ acdat_contains_ex(const AcdatAutomaton *automaton, const uint8_t *input,
             progress_callback(progress_context);
         state = advance_state(automaton, state, input[index]);
         if (automaton->terminal_head[state] != ACDAT_NO_INDEX ||
-            automaton->output_link[state] != ACDAT_NO_INDEX)
+            (automaton->output_link != NULL &&
+             automaton->output_link[state] != ACDAT_NO_INDEX))
             return true;
     }
     return false;
@@ -1096,10 +1217,10 @@ acdat_scan_ex(const AcdatAutomaton *automaton, const uint8_t *input,
                   "automaton or input pointer is NULL");
         return ACDAT_ERR_INVALID_ARGUMENT;
     }
-    if (input_length > UINT32_MAX)
+    if (input_length >= UINT32_MAX)
     {
         set_error(error, ACDAT_ERR_SIZE_OVERFLOW, SIZE_MAX,
-                  "input length exceeds uint32 range");
+                  "input length must be smaller than UINT32_MAX");
         return ACDAT_ERR_SIZE_OVERFLOW;
     }
 
@@ -1150,6 +1271,8 @@ acdat_scan_ex(const AcdatAutomaton *automaton, const uint8_t *input,
                 terminal_handle = terminal->next_terminal;
             }
 
+            if (automaton->output_link == NULL)
+                break;
             output_state = automaton->output_link[output_state];
             if (output_state == ACDAT_NO_INDEX)
                 break;

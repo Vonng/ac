@@ -1,17 +1,21 @@
 EXTENSION = acdat
 MODULE_big = acdat
 OBJS = src/acdat_pg.o src/acdat_core.o src/acdat_format.o
-DATA = sql/acdat--0.1.0.sql
+DATA = sql/acdat--0.1.0.sql sql/acdat--0.1.0--0.2.0.sql
+DATA_built = sql/acdat--0.2.0.sql
 REGRESS = acdat_basic acdat_errors
 PGFILEDESC = "acdat - compiled multi-pattern matching for PostgreSQL"
 
 PG_CPPFLAGS = -Isrc
 PG_CFLAGS = -std=c11
-EXTRA_CLEAN = build
+EXTRA_CLEAN = build sql/acdat--0.2.0.sql
 
 PG_CONFIG ?= pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
+
+sql/acdat--0.2.0.sql: sql/acdat--0.1.0.sql
+	cp $< $@
 
 CORE_CC ?= cc
 CORE_CFLAGS ?= -std=c11 -Wall -Wextra -Werror -pedantic -O1 -g
@@ -36,7 +40,11 @@ $(CORE_BENCH): src/acdat_core.c src/acdat_core.h src/acdat_format.c \
 
 core-bench: $(CORE_BENCH)
 	./$(CORE_BENCH) $${PATTERNS:-10000} $${PATTERN_BYTES:-16} \
-		$${INPUT_MIB:-64}
+		$${INPUT_MIB:-64} $${PROFILE:-ascii-miss} \
+		$${RUNTIME:-materialized} $${BASE_CANDIDATE_LIMIT:-0}
+
+bench-matrix: $(CORE_BENCH)
+	bash test/bench_matrix.sh ./$(CORE_BENCH)
 
 dump-restore-test:
 	bash test/dump_restore.sh
@@ -44,11 +52,15 @@ dump-restore-test:
 cache-smoke-test:
 	bash test/cache_smoke.sh
 
+upgrade-test:
+	bash test/upgrade.sh
+
 pg-matrix-test:
 	bash test/pg_matrix.sh
 
 cross-version-test:
 	bash test/cross_version.sh
 
-.PHONY: core-test core-bench dump-restore-test cache-smoke-test \
+.PHONY: core-test core-bench bench-matrix dump-restore-test cache-smoke-test \
+	upgrade-test \
 	pg-matrix-test cross-version-test

@@ -4,9 +4,9 @@
 patterns once and scanning each `text` or `bytea` value once. The first engine
 uses an Aho-Corasick automaton packed into a Double-Array Trie.
 
-The project is an active rewrite of the original 2018 Go benchmark. The
-PostgreSQL extension is currently experimental and its on-disk format must not
-be treated as production-stable before the first tagged release.
+The project is an active rewrite of the original 2018 Go benchmark. It remains
+pre-1.0, but published format-major-1 machines are a compatibility contract:
+new readers must continue to validate and scan them correctly.
 
 ## What it is for
 
@@ -159,17 +159,24 @@ make
 make install
 make installcheck
 make core-test
+make bench-matrix
+make upgrade-test
 make dump-restore-test
 make cache-smoke-test
 make pg-matrix-test        # Docker, PostgreSQL 14–18
 make cross-version-test    # PG14 Linux amd64 dump -> local PG18 restore
 ```
 
-Run the standalone synthetic benchmark:
+Run one standalone benchmark profile or the representative matrix:
 
 ```bash
 PATTERNS=100000 PATTERN_BYTES=16 INPUT_MIB=16 make core-bench
+BENCH_REPEATS=3 BENCH_INPUT_MIB=16 make bench-matrix
 ```
+
+The matrix covers ordinary ASCII misses, root-only misses, hit-heavy input,
+UTF-8 byte-oriented patterns, and a worst-overlap case. It reports build-search
+work, artifact and materialized memory, occupancy, and scan throughput.
 
 The current validation matrix covers PostgreSQL 14–18 on Linux amd64 with
 `-Werror`, plus PostgreSQL 18.4 on macOS arm64. Linux arm64 and package-lab
@@ -191,6 +198,8 @@ The machine type has a self-describing, checksummed, little-endian format with
 text and binary I/O. Imported artifacts are structurally validated before use.
 Hot scan expressions cache an already validated and materialized machine using
 the TOAST pointer/build fingerprint, so a large value is not detoasted per row.
+Version 0.2.0 also services PostgreSQL interrupts during DAT packing and places
+a conservative input-relative limit on base-candidate searches.
 
 `DROP EXTENSION acdat` deletes all managed dictionary state. It normally fails
 when application objects depend on `acdat.machine`; **using `CASCADE` can delete

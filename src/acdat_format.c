@@ -197,6 +197,12 @@ acdat_serialized_size(const AcdatAutomaton *automaton, uint32_t *size,
                          "automaton or size pointer is NULL");
         return ACDAT_ERR_INVALID_ARGUMENT;
     }
+    if (automaton->output_link == NULL)
+    {
+        format_set_error(error, ACDAT_ERR_INVALID_ARGUMENT,
+                         "runtime-prepared automaton cannot be serialized");
+        return ACDAT_ERR_INVALID_ARGUMENT;
+    }
     status = compute_layout(automaton->slot_count, automaton->pattern_count,
                             automaton->replacement_bytes, &layout, error);
     if (status == ACDAT_OK)
@@ -219,6 +225,12 @@ acdat_serialize(const AcdatAutomaton *automaton,
     {
         format_set_error(error, ACDAT_ERR_INVALID_ARGUMENT,
                          "serialize argument is NULL");
+        return ACDAT_ERR_INVALID_ARGUMENT;
+    }
+    if (automaton->output_link == NULL)
+    {
+        format_set_error(error, ACDAT_ERR_INVALID_ARGUMENT,
+                         "runtime-prepared automaton cannot be serialized");
         return ACDAT_ERR_INVALID_ARGUMENT;
     }
     if (options->input_kind != ACDAT_INPUT_TEXT &&

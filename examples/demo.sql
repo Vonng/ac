@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 \pset pager off
 
--- acdat 0.1.0 end-to-end demonstration.
+-- acdat 0.2.0 end-to-end demonstration.
 -- Run as the extension owner because publish/activate are intentionally not
 -- executable by PUBLIC.
 
