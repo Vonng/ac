@@ -1,3 +1,5 @@
+DATA_DIR ?= data
+
 build:
 	go build -o ac
 	time ./ac
@@ -8,10 +10,13 @@ run:
 runp:
 	GOGC=off ./ac -p=profile
 
-setup:
+fetch-data:
+	sh data/fetch.sh "$(DATA_DIR)"
+
+setup: fetch-data
 	util/ramdisk.sh && mkdir -p /ramdisk/vonng
-	tar -xf data/dict.txt.tgz -C /ramdisk/vonng
-	cat data/xa* | tar -x -C /ramdisk/vonng
+	tar -xf "$(DATA_DIR)/dict.txt.tgz" -C /ramdisk/vonng
+	tar -xf "$(DATA_DIR)/video_title.txt.tgz" -C /ramdisk/vonng
 
 prof:
 	go tool pprof profile
@@ -36,4 +41,4 @@ upload:
 	scp ac.linux tt:/tmp/ac
 	ssh tt "rm /tmp/ac.txt && GOGC=off time /tmp/ac"
 
-.PHONY: build run runp setup prof rprof clean sync remote upload
+.PHONY: build run runp fetch-data setup prof rprof clean sync remote upload

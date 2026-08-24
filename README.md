@@ -1,58 +1,66 @@
-# ACDAT in Go
+# ACDAT in Go（Legacy）
 
-Aho-Corasick Automaton with Double Array Trie (Multi-patterm substitute in go)
+> [!IMPORTANT]
+> 本分支保存 2018 年原始 Go ACDAT benchmark。项目已经 pivot 为
+> [PostgreSQL 扩展](https://github.com/Vonng/ac/tree/main)，当前开发、发布与文档
+> 均以 `main` 分支为准。
 
-* 多模式匹配（替换）具有很强的现实意义与实用价值：敏感词过滤，病毒特征码搜索等。
-* 字典中约有一千条关键字，分为三大类：电影、音乐、电影&音乐，将输入文本中的字典记录替换为相应的类别文本。遵循贪婪原则与最先匹配原则。
+这个 legacy 实现使用 Aho-Corasick 自动机与 Double-Array Trie 完成多模式匹配
+和替换，保留在 `master` 分支用于历史参考与基准复现。
 
+## 项目现状
 
+新的 `acdat` 是原生 PostgreSQL 扩展，不再只是一次性 Go benchmark：
 
+- **ACID 生命周期**：词典版本、编译产物与 active pointer 可以在事务中发布、
+  校验并原子切换，同时复用 PostgreSQL 的权限、备份恢复和持久化能力；
+- **更好的性能工程**：C/PGXS 核心将词典编译一次、对输入单次扫描，并提供
+  可复用机器格式、表达式级缓存与有界资源控制；
+- **更严谨的实现**：区分 `text`/`bytea`，对导入产物执行格式、边界、校验和与
+  兼容性检查，并覆盖 PostgreSQL 14–18 的测试矩阵；
+- **更方便的使用方式**：通过 SQL 编译、匹配、替换、发布、激活和回滚词典，
+  无需在数据库外维护一套独立状态机生命周期。
 
-## 使用说明
+请前往 [`main`](https://github.com/Vonng/ac/tree/main) 查看当前 README、SQL API、
+使用指南、设计文档和 benchmark 结果。
+
+## 基准数据下载
+
+词典与 10,318,163 行标题语料都发布在
+[`benchmark-data-2018`](https://github.com/Vonng/ac/releases/tag/benchmark-data-2018)
+Release，Git 仓库只保留源码：
+
+- [`dict.txt.tgz`](https://github.com/Vonng/ac/releases/download/benchmark-data-2018/dict.txt.tgz)：
+  1,114 条词典记录；
+- [`video_title.txt.tgz`](https://github.com/Vonng/ac/releases/download/benchmark-data-2018/video_title.txt.tgz)：
+  10,318,163 行 benchmark 输入；
+- [`SHA256SUMS`](https://github.com/Vonng/ac/releases/download/benchmark-data-2018/SHA256SUMS)：
+  两个归档的 SHA-256。
 
 ```bash
-# Setup environment: create ramdisk and copy input files
-# Assume you are using Mac
-$ make setup
-util/ramdisk.sh && mkdir -p /ramdisk/vonng
-Started erase on disk2
-Unmounting disk
-Erasing
-Initialized /dev/rdisk2 as a 1024 MB case-insensitive HFS Plus volume
-Mounting disk
-Finished erase on disk2 ramdisk
-tar -xf data/dict.txt.tgz -C /ramdisk/vonng
-cat data/xa* | tar -x -C /ramdisk/vonng
+make fetch-data
 
-# build and run 
-$ make
-GOGC=off ./ac -p=profile
-time: 2.497193491s sig: 5d76461b53079d20c08eb0b33c46b7cd
-Round 0: 2.497955425s
-Round 1: 2.504176103s
-Round 2: 2.518718803s
-Round 3: 2.506447912s
-Round 4: 2.531897625s
-Round 5: 2.529866993s
-Round 6: 2.524811658s
-Round 7: 2.531879072s
-Round 8: 2.532776425s
-Round 9: 2.549934714s
-Avg: 2.522571823s
-
-# run with profile
-make runp
-
-# see profile
-# type 'web' to see graphviz call graph
-make prof
+# 或者手动下载
+curl -fLO https://github.com/Vonng/ac/releases/download/benchmark-data-2018/dict.txt.tgz
+curl -fLO https://github.com/Vonng/ac/releases/download/benchmark-data-2018/video_title.txt.tgz
+curl -fLO https://github.com/Vonng/ac/releases/download/benchmark-data-2018/SHA256SUMS
+shasum -a 256 -c SHA256SUMS
 ```
 
+自动下载需要 `curl`，以及 Linux 上的 `sha256sum` 或 macOS 上的 `shasum`。
+如需使用自己的 HTTPS 镜像，可设置 `ACDAT_DATA_BASE_URL`。
 
+## 运行原始 Go benchmark
 
+```bash
+make fetch-data  # 下载并校验词典与语料
+make setup       # macOS: 创建 ramdisk 并解压输入
+make             # 编译并运行
+make runp        # 生成 profile
+make prof        # 使用 pprof 查看
+```
 
-
-## 题目
+## 原始题目与实现笔记
 
 ### 1. 目的
 
@@ -368,4 +376,3 @@ func WriteRune(r rune) {
 ### 字典常量 vs 动态创建 0.15s 
 
 存在只读段的数组，访问起来竟然比本地读取重新构建还要慢，不禁陷入深思。
-

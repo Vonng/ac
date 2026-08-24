@@ -95,3 +95,8 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+# Optional benchmark corpus downloaded from the benchmark-data-2018 release
+/data/dict.txt.tgz
+/data/dict.txt.tgz.part
+/data/video_title.txt.tgz
+/data/video_title.txt.tgz.part
