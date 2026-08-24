@@ -18,7 +18,7 @@
   "provides": {
     "acdat": {
       "file": "sql/acdat--0.2.0.sql",
-      "docfile": "docs/usage.md",
+      "docfile": "docs/USAGE.md",
       "version": "0.2.0",
       "abstract": "Compiled multi-pattern matching for PostgreSQL"
     }

@@ -185,12 +185,10 @@ verification remain release gates.
 
 Documentation:
 
-- [Usage guide](docs/usage.md)
-- [Performance report](docs/performance-2026-08-24.md)
+- [Usage guide](docs/USAGE.md)
+- [Performance report](docs/PERFORMANCE.md)
 - [Benchmark notes](docs/BENCHMARK.md)
 - [Changelog](docs/CHANGELOG.md)
-- [Version 0.2.0 design](docs/v0.2.0.md)
-- [Product and machine-format contract](PRD.md)
 
 A runnable end-to-end example is available at [examples/demo.sql](examples/demo.sql):
 
