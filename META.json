@@ -2,12 +2,12 @@
   "name": "acdat",
   "abstract": "Compiled multi-pattern matching for PostgreSQL",
   "description": "Compiles large literal pattern sets into immutable Aho-Corasick double-array machines for one-pass text and bytea matching, extraction, replacement, and transactional dictionary lifecycle management.",
-  "version": "0.2.0",
+  "version": "0.1.1",
   "maintainer": [
     "Feng Ruohang <rh@vonng.com>"
   ],
-  "license": "postgresql",
-  "release_status": "testing",
+  "license": "apache_2_0",
+  "release_status": "stable",
   "prereqs": {
     "runtime": {
       "requires": {
@@ -17,20 +17,20 @@
   },
   "provides": {
     "acdat": {
-      "file": "sql/acdat--0.2.0.sql",
+      "file": "sql/acdat--0.1.1.sql",
       "docfile": "docs/USAGE.md",
-      "version": "0.2.0",
+      "version": "0.1.1",
       "abstract": "Compiled multi-pattern matching for PostgreSQL"
     }
   },
   "resources": {
-    "homepage": "https://github.com/Vonng/ac",
+    "homepage": "https://github.com/pgsty/acdat",
     "bugtracker": {
-      "web": "https://github.com/Vonng/ac/issues"
+      "web": "https://github.com/pgsty/acdat/issues"
     },
     "repository": {
-      "url": "https://github.com/Vonng/ac.git",
-      "web": "https://github.com/Vonng/ac",
+      "url": "https://github.com/pgsty/acdat.git",
+      "web": "https://github.com/pgsty/acdat",
       "type": "git"
     }
   },

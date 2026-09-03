@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 - 2026-08-24
+## 0.1.1 - 2026-09-03
 
 - Removed the unnecessary globally unique BASE constraint from the Basic
   parent-state CHECK builder, eliminating pathological UTF-8 dictionary build
@@ -18,7 +18,10 @@
 - Evaluated and rejected Packed runtime states and LexDFS placement because
   their workload-specific wins did not justify permanent selection complexity.
 - Preserved the 0.1.0 SQL API and machine format, with an extension update path
-  to 0.2.0.
+  to 0.1.1.
+- Moved the canonical repository to `pgsty/acdat` and refreshed project links
+  and release metadata.
+- Relicensed the project under the Apache License 2.0.
 
 ## 0.1.0 - 2026-08-22
 

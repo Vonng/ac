@@ -18,13 +18,13 @@ SELECT acdat.compile(
          ARRAY[1, 2, 3, 4]::bigint[]
        ) AS machine;
 SELECT extversion FROM pg_extension WHERE extname = 'acdat';
-ALTER EXTENSION acdat UPDATE TO '0.2.0';
+ALTER EXTENSION acdat UPDATE TO '0.1.1';
 SELECT extversion FROM pg_extension WHERE extname = 'acdat';
 SELECT acdat.contains('ushers', machine) FROM saved_machine;
 SELECT acdat.info(machine)->>'format_major' FROM saved_machine;
 SQL
 )"
-expected=$'CREATE EXTENSION\nSELECT 1\n0.1.0\nALTER EXTENSION\n0.2.0\nt\n1'
+expected=$'CREATE EXTENSION\nSELECT 1\n0.1.0\nALTER EXTENSION\n0.1.1\nt\n1'
 
 if [[ "$actual" != "$expected" ]]; then
   printf 'extension upgrade mismatch\nexpected:\n%s\nactual:\n%s\n' \

@@ -4,7 +4,7 @@ The comprehensive real-corpus Go-versus-PostgreSQL report for the current
 Apple M5 Max test host is recorded in
 [`PERFORMANCE.md`](PERFORMANCE.md).
 
-## 2026-08-24: v0.2.0 benchmark-gated changes
+## 2026-08-24: v0.1.1 benchmark-gated changes
 
 Environment:
 
@@ -21,10 +21,10 @@ BENCH_REPEATS=3 BENCH_INPUT_MIB=16 make bench-matrix
 ```
 
 The comparison baseline was captured with the expanded benchmark immediately
-before the v0.2.0 core changes. The workload generator and compiler settings
+before the v0.1.1 core changes. The workload generator and compiler settings
 were otherwise identical.
 
-| 100K profile | v0.1 build | v0.2 build | v0.1 scan | v0.2 scan |
+| 100K profile | v0.1.0 build | v0.1.1 build | v0.1.0 scan | v0.1.1 scan |
 |---|---:|---:|---:|---:|
 | ASCII miss | 0.280 s | 0.116 s | 59.97 MiB/s | 64.80 MiB/s |
 | Root-only miss | 0.278 s | 0.077 s | 449.67 MiB/s | 936.06 MiB/s |
@@ -62,7 +62,7 @@ the standalone scanner.
 
 These are local engineering results, not cross-platform release claims. Linux
 amd64/arm64, PostgreSQL short-row, parallel-worker, and package-lab results
-remain separate release gates.
+remain separate validation targets.
 
 ## 2026-08-22: byte256 ACDAT baseline
 

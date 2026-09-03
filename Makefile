@@ -1,9 +1,9 @@
 EXTENSION = acdat
-EXTVERSION = 0.2.0
-DISTVERSION = 0.2.0
+EXTVERSION = 0.1.1
+DISTVERSION = 0.1.1
 MODULE_big = acdat
 OBJS = src/acdat_pg.o src/acdat_core.o src/acdat_format.o
-DATA = sql/acdat--0.1.0.sql sql/acdat--0.1.0--0.2.0.sql \
+DATA = sql/acdat--0.1.0.sql sql/acdat--0.1.0--0.1.1.sql \
 	   sql/acdat--$(EXTVERSION).sql
 REGRESS = acdat_basic acdat_errors
 PGFILEDESC = "acdat - compiled multi-pattern matching for PostgreSQL"
@@ -68,7 +68,7 @@ check-meta:
 	test -f "sql/$(EXTENSION)--0.1.0--$(EXTVERSION).sql"
 	grep -Eq "^default_version[[:space:]]*=[[:space:]]*'$(EXTVERSION)'[[:space:]]*$$" \
 		$(EXTENSION).control
-	# Version 0.2.0 changes C code only; its full install SQL must stay identical.
+	# Version 0.1.1 changes C code only; its full install SQL must stay identical.
 	cmp -s sql/$(EXTENSION)--0.1.0.sql \
 		sql/$(EXTENSION)--$(EXTVERSION).sql
 

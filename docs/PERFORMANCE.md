@@ -37,7 +37,7 @@ query is available.
 |---|---|
 | Original Go reference (`origin/master`) | `4fe39443915cd1879ef07474f10f87dc0694a0f4` |
 | PostgreSQL extension (`main`) | `0d8a7c422639bf20c2550a976d845afd40389728` |
-| Extension version | `0.2.0` |
+| Extension version | `0.1.1` |
 
 The installed `acdat.dylib` was byte-identical to the artifact built from the
 tested `main` revision.
@@ -404,7 +404,7 @@ inside the document loop.
 | Full result export | Streaming `COPY` or application streaming | Avoid ordinary `SELECT` buffering in clients |
 | 100K+ machine with many workers | Budget runtime times participating processes | Each worker materializes a private machine copy |
 
-## Limitations and remaining gates
+## Limitations and remaining validation
 
 This report does not establish:
 
@@ -458,7 +458,7 @@ CROSS JOIN LATERAL acdat.matches(
 
 ## Final assessment
 
-ACDAT 0.2.0 is performance-credible as an in-database exact literal-rule
+ACDAT 0.1.1 is performance-credible as an in-database exact literal-rule
 engine:
 
 - correctness matches the original Go result over the complete historical

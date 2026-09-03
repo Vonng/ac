@@ -1,6 +1,6 @@
 # ACDAT Usage Guide
 
-This guide explains the core workflow of `acdat` 0.2.0. The short version is:
+This guide explains the core workflow of `acdat` 0.1.1. The short version is:
 
 > `acdat` compiles a set of literal patterns into one reusable `machine`. The
 > first array passed to `compile` contains the patterns. The second array is
@@ -112,7 +112,7 @@ FROM pg_extension
 WHERE extname = 'acdat';
 ```
 
-The expected version is `0.2.0`, and `extrelocatable` is `false`.
+The expected version is `0.1.1`, and `extrelocatable` is `false`.
 
 ### 2.2 Run the demonstration
 
@@ -295,7 +295,7 @@ The arguments are:
 
 `pattern_ids`, `replacements`, and `priorities` are parallel arrays. Each
 non-NULL array must have the same length as `patterns`, and values at the same
-subscript form one rule. `options` is not a parallel array. Version 0.2.0 only
+subscript form one rule. `options` is not a parallel array. Version 0.1.1 only
 accepts the empty options object.
 
 When IDs are omitted, `acdat` generates IDs from 1 through N:
@@ -335,7 +335,7 @@ Array compilation rules:
 - a NULL replacement element means no replacement;
 - `patterns IS NULL` returns NULL;
 - an empty array produces a valid machine that never matches;
-- version 0.2.0 accepts only an empty options object.
+- version 0.1.1 accepts only an empty options object.
 
 Because both `text[]` and `bytea[]` overloads exist, cast empty or all-NULL
 arrays explicitly:

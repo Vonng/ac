@@ -1,5 +1,7 @@
 # acdat
 
+Current release: [**0.1.1**](https://github.com/pgsty/acdat/releases/tag/v0.1.1)
+
 `acdat` is a PostgreSQL extension for compiling a large set of exact literal
 patterns once and scanning each `text` or `bytea` value once. The first engine
 uses an Aho-Corasick automaton packed into a Double-Array Trie.
@@ -181,7 +183,7 @@ work, artifact and materialized memory, occupancy, and scan throughput.
 
 The current validation matrix covers PostgreSQL 14–18 on Linux amd64 with
 `-Werror`, plus PostgreSQL 18.4 on macOS arm64. Linux arm64 and package-lab
-verification remain release gates.
+verification remain additional validation targets.
 
 Documentation:
 
@@ -199,9 +201,9 @@ psql -X -v ON_ERROR_STOP=1 -d your_database -f examples/demo.sql
 ## Legacy Go benchmark data
 
 The original 2018 Go implementation remains on the
-[`master`](https://github.com/Vonng/ac/tree/master) branch. Its optional
+[`master`](https://github.com/pgsty/acdat/tree/master) branch. Its optional
 10,318,163-line benchmark corpus is distributed as the
-[`benchmark-data-2018`](https://github.com/Vonng/ac/releases/tag/benchmark-data-2018)
+[`benchmark-data-2018`](https://github.com/pgsty/acdat/releases/tag/benchmark-data-2018)
 release instead of being stored in Git history. The corpus is not required to
 build or test the PostgreSQL extension.
 
@@ -211,7 +213,7 @@ The machine type has a self-describing, checksummed, little-endian format with
 text and binary I/O. Imported artifacts are structurally validated before use.
 Hot scan expressions cache an already validated and materialized machine using
 the TOAST pointer/build fingerprint, so a large value is not detoasted per row.
-Version 0.2.0 also services PostgreSQL interrupts during DAT packing and places
+Version 0.1.1 also services PostgreSQL interrupts during DAT packing and places
 a conservative input-relative limit on base-candidate searches.
 
 `DROP EXTENSION acdat` deletes all managed dictionary state. It normally fails
@@ -221,4 +223,6 @@ patterns before uninstalling.
 
 ## License
 
-`acdat` is distributed under the [PostgreSQL License](LICENSE).
+`acdat` is distributed under the [Apache License 2.0](LICENSE).
+
+Copyright 2018-2026 Ruohang Feng.
